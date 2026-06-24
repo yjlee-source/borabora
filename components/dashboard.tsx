@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import {
+  BookOpen,
   CalendarDays,
   CircleDollarSign,
   ExternalLink,
@@ -10,11 +11,13 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Save,
   ShieldCheck,
   Sparkles,
-  Star
+  Star,
+  Trash2
 } from "lucide-react";
-import { BRANDS, SOURCES, type Brand, type DashboardData, type Source } from "@/lib/types";
+import { BRANDS, SOURCES, type Brand, type BrgConditions, type DashboardData, type SearchPreset, type Source } from "@/lib/types";
 
 type Props = {
   initialData: DashboardData;
@@ -34,9 +37,41 @@ const sourceLabels: Record<Source, string> = {
   agoda: "Agoda"
 };
 
+type SearchOptions = {
+  adults: number;
+  rooms: number;
+  currency: string;
+  includeCash: boolean;
+  includePoints: boolean;
+  sources: Source[];
+  brgConditions: BrgConditions;
+};
+
+const defaultSearchOptions: SearchOptions = {
+  adults: 2,
+  rooms: 1,
+  currency: "KRW",
+  includeCash: true,
+  includePoints: true,
+  sources: [...SOURCES],
+  brgConditions: {
+    roomType: "",
+    bedType: "any",
+    cancellation: "free",
+    mealPlan: "any",
+    taxPolicy: "taxes_included",
+    paymentTiming: "any",
+    requirePubliclyBookable: true,
+    strictMatch: false
+  }
+};
+
 export function Dashboard({ initialData }: Props) {
   const [data, setData] = useState(initialData);
   const [selectedHotelId, setSelectedHotelId] = useState(initialData.hotels[0]?.id ?? "");
+  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [presetName, setPresetName] = useState("");
+  const [searchOptions, setSearchOptions] = useState<SearchOptions>(defaultSearchOptions);
   const [isPending, startTransition] = useTransition();
   const [notice, setNotice] = useState("");
 
@@ -51,6 +86,11 @@ export function Dashboard({ initialData }: Props) {
     [data.hotels, selectedHotelId]
   );
 
+  const selectedPreset = useMemo(
+    () => data.presets.find((preset) => preset.id === selectedPresetId),
+    [data.presets, selectedPresetId]
+  );
+
   async function refreshDashboard() {
     const response = await fetch("/api/dashboard", { cache: "no-store" });
     setData(await response.json());
@@ -58,27 +98,11 @@ export function Dashboard({ initialData }: Props) {
 
   async function createSearchRun(formData: FormData) {
     setNotice("");
-    const sources = SOURCES.filter((source) => formData.get(source) === "on");
     const payload = {
       hotelId: formData.get("hotelId"),
       checkIn: formData.get("checkIn"),
       checkOut: formData.get("checkOut"),
-      adults: Number(formData.get("adults") || 2),
-      rooms: Number(formData.get("rooms") || 1),
-      currency: formData.get("currency") || "KRW",
-      includeCash: formData.get("includeCash") === "on",
-      includePoints: formData.get("includePoints") === "on",
-      brgConditions: {
-        roomType: formData.get("roomType") || "",
-        bedType: formData.get("bedType") || "any",
-        cancellation: formData.get("cancellation") || "free",
-        mealPlan: formData.get("mealPlan") || "any",
-        taxPolicy: formData.get("taxPolicy") || "taxes_included",
-        paymentTiming: formData.get("paymentTiming") || "any",
-        requirePubliclyBookable: formData.get("requirePubliclyBookable") === "on",
-        strictMatch: formData.get("strictMatch") === "on"
-      },
-      sources
+      ...searchOptions
     };
 
     startTransition(async () => {
@@ -89,6 +113,68 @@ export function Dashboard({ initialData }: Props) {
       });
       const body = await response.json();
       setNotice(response.ok ? "조회가 완료되었습니다." : body.error || "조회에 실패했습니다.");
+      await refreshDashboard();
+    });
+  }
+
+  function applyPreset(presetId: string) {
+    setSelectedPresetId(presetId);
+    const preset = data.presets.find((item) => item.id === presetId);
+    if (!preset) {
+      setPresetName("");
+      setSearchOptions(defaultSearchOptions);
+      return;
+    }
+    setPresetName(preset.name);
+    setSearchOptions(optionsFromPreset(preset));
+  }
+
+  async function savePreset() {
+    setNotice("");
+    const payload = presetPayload(presetName || "새 검색 옵션", searchOptions);
+    startTransition(async () => {
+      const response = await fetch("/api/search-presets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const body = await response.json();
+      setNotice(response.ok ? "검색 옵션을 저장했습니다." : body.error || "검색 옵션 저장에 실패했습니다.");
+      await refreshDashboard();
+      if (body.preset?.id) setSelectedPresetId(body.preset.id);
+    });
+  }
+
+  async function updatePreset() {
+    if (!selectedPresetId) {
+      setNotice("수정할 프리셋을 먼저 선택해주세요.");
+      return;
+    }
+    setNotice("");
+    startTransition(async () => {
+      const response = await fetch(`/api/search-presets/${selectedPresetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(presetPayload(presetName || selectedPreset?.name || "검색 옵션", searchOptions))
+      });
+      const body = await response.json();
+      setNotice(response.ok ? "검색 옵션을 수정했습니다." : body.error || "검색 옵션 수정에 실패했습니다.");
+      await refreshDashboard();
+    });
+  }
+
+  async function deletePreset() {
+    if (!selectedPresetId) {
+      setNotice("삭제할 프리셋을 먼저 선택해주세요.");
+      return;
+    }
+    setNotice("");
+    startTransition(async () => {
+      const response = await fetch(`/api/search-presets/${selectedPresetId}`, { method: "DELETE" });
+      const body = await response.json();
+      setNotice(response.ok ? "검색 옵션을 삭제했습니다." : body.error || "검색 옵션 삭제에 실패했습니다.");
+      setSelectedPresetId("");
+      setPresetName("");
       await refreshDashboard();
     });
   }
@@ -144,7 +230,7 @@ export function Dashboard({ initialData }: Props) {
         </div>
         <div className="panel grid grid-cols-3 divide-x divide-ink/10 overflow-hidden text-center">
           <Metric label="호텔" value={data.hotels.length} />
-          <Metric label="최근 조회" value={data.runs.length} />
+          <Metric label="프리셋" value={data.presets.length} />
           <Metric label="이벤트" value={data.promotions.length} />
         </div>
       </header>
@@ -168,6 +254,28 @@ export function Dashboard({ initialData }: Props) {
             </button>
           </div>
 
+          <div className="mb-5 grid gap-3 border-b border-ink/10 pb-4 lg:grid-cols-[1fr_1fr_auto_auto_auto]">
+            <div>
+              <label className="label" htmlFor="presetId">저장된 검색 옵션</label>
+              <select className="field" id="presetId" value={selectedPresetId} onChange={(event) => applyPreset(event.target.value)}>
+                <option value="">기본 옵션</option>
+                {data.presets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>{preset.name}</option>
+                ))}
+              </select>
+            </div>
+            <TextInput label="프리셋 이름" name="presetName" value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder="도쿄 2인 무료취소" />
+            <button type="button" className="mt-5 inline-flex h-10 items-center justify-center gap-2 bg-moss px-3 text-sm font-semibold text-white disabled:opacity-50" style={{ borderRadius: 6 }} onClick={savePreset} disabled={isPending}>
+              <Save size={16} /> 저장
+            </button>
+            <button type="button" className="mt-5 inline-flex h-10 items-center justify-center gap-2 border border-ink/15 bg-white px-3 text-sm font-semibold disabled:opacity-50" style={{ borderRadius: 6 }} onClick={updatePreset} disabled={isPending || !selectedPresetId}>
+              <RefreshCw size={16} /> 수정
+            </button>
+            <button type="button" className="mt-5 icon-button" title="프리셋 삭제" onClick={deletePreset} disabled={isPending || !selectedPresetId}>
+              <Trash2 size={16} />
+            </button>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="sm:col-span-2">
               <label className="label" htmlFor="hotelId">호텔</label>
@@ -181,14 +289,14 @@ export function Dashboard({ initialData }: Props) {
             </div>
             <TextInput label="체크인" name="checkIn" type="date" defaultValue={toDateInput(tomorrow)} />
             <TextInput label="체크아웃" name="checkOut" type="date" defaultValue={toDateInput(checkout)} />
-            <TextInput label="성인" name="adults" type="number" defaultValue="2" min="1" max="8" />
-            <TextInput label="객실" name="rooms" type="number" defaultValue="1" min="1" max="4" />
-            <TextInput label="통화" name="currency" defaultValue="KRW" maxLength={3} />
+            <TextInput label="성인" name="adults" type="number" value={searchOptions.adults} min="1" max="8" onChange={(event) => updateSearchOption("adults", Number(event.target.value || 1))} />
+            <TextInput label="객실" name="rooms" type="number" value={searchOptions.rooms} min="1" max="4" onChange={(event) => updateSearchOption("rooms", Number(event.target.value || 1))} />
+            <TextInput label="통화" name="currency" value={searchOptions.currency} maxLength={3} onChange={(event) => updateSearchOption("currency", event.target.value.toUpperCase())} />
             <div>
               <span className="label">요금 종류</span>
               <div className="flex h-10 items-center gap-4">
-                <Check name="includeCash" label="현금" defaultChecked />
-                <Check name="includePoints" label="포인트" defaultChecked />
+                <Check name="includeCash" label="현금" checked={searchOptions.includeCash} onChange={(checked) => updateSearchOption("includeCash", checked)} />
+                <Check name="includePoints" label="포인트" checked={searchOptions.includePoints} onChange={(checked) => updateSearchOption("includePoints", checked)} />
               </div>
             </div>
           </div>
@@ -197,7 +305,7 @@ export function Dashboard({ initialData }: Props) {
             {SOURCES.map((source) => (
               <label key={source} className="flex items-center justify-between border border-ink/12 bg-paper px-3 py-2 text-sm" style={{ borderRadius: 6 }}>
                 <span>{sourceLabels[source]}</span>
-                <input name={source} type="checkbox" defaultChecked />
+                <input name={source} type="checkbox" checked={searchOptions.sources.includes(source)} onChange={(event) => toggleSource(source, event.target.checked)} />
               </label>
             ))}
           </div>
@@ -208,38 +316,38 @@ export function Dashboard({ initialData }: Props) {
               <h3 className="text-sm font-semibold">BRG 동일 조건 필터</h3>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <TextInput label="객실명 키워드" name="roomType" placeholder="Deluxe King" />
+              <TextInput label="객실명 키워드" name="roomType" placeholder="Deluxe King" value={searchOptions.brgConditions.roomType || ""} onChange={(event) => updateCondition("roomType", event.target.value)} />
               <SelectInput label="침대" name="bedType" options={[
                 ["any", "무관"],
                 ["king", "King"],
                 ["queen", "Queen"],
                 ["twin", "Twin"],
                 ["double", "Double"]
-              ]} />
-              <SelectInput label="취소 조건" name="cancellation" defaultValue="free" options={[
+              ]} value={searchOptions.brgConditions.bedType} onChange={(value) => updateCondition("bedType", value as BrgConditions["bedType"])} />
+              <SelectInput label="취소 조건" name="cancellation" options={[
                 ["any", "무관"],
                 ["free", "무료 취소"],
                 ["non_refundable", "환불불가"]
-              ]} />
+              ]} value={searchOptions.brgConditions.cancellation} onChange={(value) => updateCondition("cancellation", value as BrgConditions["cancellation"])} />
               <SelectInput label="식사 조건" name="mealPlan" options={[
                 ["any", "무관"],
                 ["room_only", "객실만"],
                 ["breakfast", "조식 포함"]
-              ]} />
-              <SelectInput label="세금/수수료" name="taxPolicy" defaultValue="taxes_included" options={[
+              ]} value={searchOptions.brgConditions.mealPlan} onChange={(value) => updateCondition("mealPlan", value as BrgConditions["mealPlan"])} />
+              <SelectInput label="세금/수수료" name="taxPolicy" options={[
                 ["taxes_included", "총액 기준"],
                 ["any", "무관"]
-              ]} />
+              ]} value={searchOptions.brgConditions.taxPolicy} onChange={(value) => updateCondition("taxPolicy", value as BrgConditions["taxPolicy"])} />
               <SelectInput label="결제 방식" name="paymentTiming" options={[
                 ["any", "무관"],
                 ["pay_now", "즉시결제"],
                 ["pay_at_property", "현장결제"]
-              ]} />
+              ]} value={searchOptions.brgConditions.paymentTiming} onChange={(value) => updateCondition("paymentTiming", value as BrgConditions["paymentTiming"])} />
               <div className="flex min-h-10 items-end">
-                <Check name="requirePubliclyBookable" label="공개 예약 가능 요금만" defaultChecked />
+                <Check name="requirePubliclyBookable" label="공개 예약 가능 요금만" checked={searchOptions.brgConditions.requirePubliclyBookable} onChange={(checked) => updateCondition("requirePubliclyBookable", checked)} />
               </div>
               <div className="flex min-h-10 items-end">
-                <Check name="strictMatch" label="조건 불명 결과 제외" />
+                <Check name="strictMatch" label="조건 불명 결과 제외" checked={searchOptions.brgConditions.strictMatch} onChange={(checked) => updateCondition("strictMatch", checked)} />
               </div>
             </div>
           </div>
@@ -353,10 +461,53 @@ export function Dashboard({ initialData }: Props) {
               )}
             </div>
           </section>
+
+          <section className="panel overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-ink/10 px-4 py-3 sm:px-5">
+              <BookOpen size={20} className="text-coral" />
+              <h2 className="text-lg font-semibold">BRG 정책</h2>
+            </div>
+            <div className="divide-y divide-ink/10">
+              {data.policies.map((policy) => (
+                <a key={policy.brand} className="block px-4 py-3 transition hover:bg-paper sm:px-5" href={policy.sourceUrl} target="_blank">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-semibold text-moss">{brandLabels[policy.brand]}</span>
+                    <span className="text-xs text-ink/50">검토 {policy.lastReviewedAt}</span>
+                  </div>
+                  <h3 className="mt-1 text-sm font-semibold">{policy.reward}</h3>
+                  <p className="mt-1 text-xs leading-5 text-ink/64">{policy.claimWindow}</p>
+                  <p className="mt-1 text-xs leading-5 text-ink/58">{policy.summary}</p>
+                </a>
+              ))}
+            </div>
+          </section>
         </aside>
       </section>
     </main>
   );
+
+  function updateSearchOption<Key extends keyof SearchOptions>(key: Key, value: SearchOptions[Key]) {
+    setSearchOptions((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateCondition<Key extends keyof BrgConditions>(key: Key, value: BrgConditions[Key]) {
+    setSearchOptions((current) => ({
+      ...current,
+      brgConditions: {
+        ...current.brgConditions,
+        [key]: value
+      }
+    }));
+  }
+
+  function toggleSource(source: Source, checked: boolean) {
+    setSearchOptions((current) => {
+      const sources = checked
+        ? Array.from(new Set([...current.sources, source]))
+        : current.sources.filter((item) => item !== source);
+      return { ...current, sources: sources.length ? sources : [source] };
+    });
+  }
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
@@ -382,17 +533,19 @@ function SelectInput({
   label,
   name,
   options,
-  defaultValue
+  value,
+  onChange
 }: {
   label: string;
   name: string;
   options: Array<[string, string]>;
-  defaultValue?: string;
+  value: string;
+  onChange: (value: string) => void;
 }) {
   return (
     <div>
       <label className="label" htmlFor={name}>{label}</label>
-      <select className="field" id={name} name={name} defaultValue={defaultValue}>
+      <select className="field" id={name} name={name} value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map(([value, text]) => (
           <option key={value} value={value}>{text}</option>
         ))}
@@ -401,10 +554,20 @@ function SelectInput({
   );
 }
 
-function Check({ name, label, defaultChecked }: { name: string; label: string; defaultChecked?: boolean }) {
+function Check({
+  name,
+  label,
+  checked,
+  onChange
+}: {
+  name: string;
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
   return (
     <label className="inline-flex items-center gap-2 text-sm">
-      <input name={name} type="checkbox" defaultChecked={defaultChecked} />
+      <input name={name} type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       {label}
     </label>
   );
@@ -478,11 +641,46 @@ function RunResult({ run }: { run: DashboardData["runs"][number] }) {
             {result.pointsRates[0] ? (
               <p className="mt-1 text-xs text-ink/65">{result.pointsRates[0].points.toLocaleString()} pts</p>
             ) : null}
+            {result.brgPrediction ? <Prediction prediction={result.brgPrediction} /> : null}
             {result.failureReason ? <p className="mt-2 text-xs leading-5 text-coral">{result.failureReason}</p> : null}
           </div>
         ))}
       </div>
     </article>
+  );
+}
+
+function Prediction({ prediction }: { prediction: NonNullable<DashboardData["runs"][number]["results"][number]["brgPrediction"]> }) {
+  const styles = {
+    HIGH: "border-moss/20 bg-moss/10 text-moss",
+    MEDIUM: "border-amber-500/25 bg-amber-50 text-amber-700",
+    LOW: "border-coral/25 bg-coral/10 text-coral",
+    BLOCKED: "border-ink/15 bg-white text-ink/60"
+  };
+  const labels = {
+    HIGH: "높음",
+    MEDIUM: "보통",
+    LOW: "낮음",
+    BLOCKED: "제외"
+  };
+
+  return (
+    <div className="mt-3 border-t border-ink/10 pt-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`border px-2 py-1 text-xs font-semibold ${styles[prediction.band]}`} style={{ borderRadius: 999 }}>
+          BRG 예측 {prediction.score}% · {labels[prediction.band]}
+        </span>
+        <a className="text-xs underline text-ink/58" href={prediction.policySourceUrl} target="_blank">
+          정책 보기
+        </a>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-ink/64">{prediction.headline}</p>
+      {[...prediction.blockers, ...prediction.riskFactors, ...prediction.positiveFactors].slice(0, 4).length ? (
+        <p className="mt-1 text-xs leading-5 text-ink/52">
+          {[...prediction.blockers, ...prediction.riskFactors, ...prediction.positiveFactors].slice(0, 4).join(" · ")}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -527,4 +725,29 @@ function toDateInput(date: Date) {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(new Date(value));
+}
+
+function optionsFromPreset(preset: SearchPreset): SearchOptions {
+  return {
+    adults: preset.adults,
+    rooms: preset.rooms,
+    currency: preset.currency,
+    includeCash: preset.includeCash,
+    includePoints: preset.includePoints,
+    sources: preset.sources,
+    brgConditions: preset.brgConditions
+  };
+}
+
+function presetPayload(name: string, options: SearchOptions) {
+  return {
+    name,
+    adults: options.adults,
+    rooms: options.rooms,
+    currency: options.currency,
+    sources: options.sources,
+    includeCash: options.includeCash,
+    includePoints: options.includePoints,
+    brgConditions: options.brgConditions
+  };
 }

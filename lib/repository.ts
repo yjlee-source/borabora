@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import type { Brand, BrgConditions, ConnectorOutput, DashboardData } from "@/lib/types";
+import { getBrgPolicies } from "@/lib/brg-policies";
+import type { Brand, BrgConditions, ConnectorOutput, DashboardData, SearchPreset, Source } from "@/lib/types";
 
 export async function ensureStarterData() {
   const count = await prisma.hotel.count();
@@ -50,8 +51,9 @@ export async function ensureStarterData() {
 export async function getDashboardData(): Promise<DashboardData> {
   await ensureStarterData();
 
-  const [hotels, runs, promotions] = await Promise.all([
+  const [hotels, presets, runs, promotions] = await Promise.all([
     prisma.hotel.findMany({ orderBy: [{ brand: "asc" }, { name: "asc" }] }),
+    prisma.searchPreset.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.searchRun.findMany({
       orderBy: { createdAt: "desc" },
       take: 8,
@@ -65,6 +67,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       ...hotel,
       brand: hotel.brand as Brand
     })),
+    presets: presets.map(mapPreset),
     runs: runs.map((run) => ({
       id: run.id,
       hotelName: run.hotel.name,
@@ -84,6 +87,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         screenshotUrl: result.screenshotUrl || undefined,
         capturedAt: result.capturedAt.toISOString(),
         confidence: result.confidence,
+        brgPrediction: parsePrediction(result.brgPredictionJson),
         failureReason: result.failureReason || undefined
       }))
     })),
@@ -95,7 +99,8 @@ export async function getDashboardData(): Promise<DashboardData> {
       sourceUrl: promotion.sourceUrl,
       expiresAt: promotion.expiresAt?.toISOString() ?? null,
       status: promotion.status
-    }))
+    })),
+    policies: getBrgPolicies()
   };
 }
 
@@ -112,6 +117,43 @@ function parseConditions(value: string): BrgConditions {
       requirePubliclyBookable: true,
       strictMatch: false
     };
+  }
+}
+
+export function mapPreset(preset: {
+  id: string;
+  name: string;
+  adults: number;
+  rooms: number;
+  currency: string;
+  sources: string;
+  includeCash: boolean;
+  includePoints: boolean;
+  brgConditionsJson: string;
+  createdAt: Date;
+  updatedAt: Date;
+}): SearchPreset {
+  return {
+    id: preset.id,
+    name: preset.name,
+    adults: preset.adults,
+    rooms: preset.rooms,
+    currency: preset.currency,
+    sources: preset.sources.split(",").filter(Boolean) as Source[],
+    includeCash: preset.includeCash,
+    includePoints: preset.includePoints,
+    brgConditions: parseConditions(preset.brgConditionsJson),
+    createdAt: preset.createdAt.toISOString(),
+    updatedAt: preset.updatedAt.toISOString()
+  };
+}
+
+function parsePrediction(value: string) {
+  try {
+    const parsed = JSON.parse(value);
+    return Object.keys(parsed).length ? parsed : undefined;
+  } catch {
+    return undefined;
   }
 }
 

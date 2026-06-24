@@ -29,6 +29,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       screenshotUrl: result.screenshotUrl,
       capturedAt: result.capturedAt,
       confidence: result.confidence,
+      brgPrediction: JSON.parse(result.brgPredictionJson),
       failureReason: result.failureReason
     }))
   });

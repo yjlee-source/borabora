@@ -48,3 +48,14 @@ export const credentialSchema = z.object({
   username: z.string().min(2),
   password: z.string().min(6)
 });
+
+export const searchPresetSchema = z.object({
+  name: z.string().min(2).max(60),
+  adults: z.coerce.number().int().min(1).max(8).default(2),
+  rooms: z.coerce.number().int().min(1).max(4).default(1),
+  currency: z.string().min(3).max(3).default("KRW"),
+  sources: z.array(z.enum(SOURCES)).min(1).default(["official", "google", "booking", "agoda"]),
+  includeCash: z.boolean().default(true),
+  includePoints: z.boolean().default(true),
+  brgConditions: brgConditionsSchema.default({})
+});

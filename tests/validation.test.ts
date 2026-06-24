@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { searchRunSchema } from "@/lib/validation";
+import { searchPresetSchema, searchRunSchema } from "@/lib/validation";
 
 describe("search run validation", () => {
   it("allows one to seven nights", () => {
@@ -59,5 +59,31 @@ describe("search run validation", () => {
 
     expect(parsed.brgConditions.strictMatch).toBe(true);
     expect(parsed.brgConditions.mealPlan).toBe("breakfast");
+  });
+});
+
+describe("search preset validation", () => {
+  it("accepts reusable search options without hotel or dates", () => {
+    const parsed = searchPresetSchema.parse({
+      name: "Tokyo refundable",
+      adults: 2,
+      rooms: 1,
+      currency: "KRW",
+      sources: ["official", "booking"],
+      includeCash: true,
+      includePoints: true,
+      brgConditions: {
+        cancellation: "free",
+        mealPlan: "room_only",
+        taxPolicy: "taxes_included",
+        paymentTiming: "any",
+        bedType: "king",
+        requirePubliclyBookable: true,
+        strictMatch: true
+      }
+    });
+
+    expect(parsed.name).toBe("Tokyo refundable");
+    expect(parsed.sources).toEqual(["official", "booking"]);
   });
 });

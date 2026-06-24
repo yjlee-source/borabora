@@ -16,6 +16,17 @@ export type BrgConditions = {
 };
 
 export type ConditionMatch = "MATCH" | "MISMATCH" | "UNKNOWN";
+export type BrgPredictionBand = "HIGH" | "MEDIUM" | "LOW" | "BLOCKED";
+
+export type BrgPrediction = {
+  score: number;
+  band: BrgPredictionBand;
+  headline: string;
+  positiveFactors: string[];
+  riskFactors: string[];
+  blockers: string[];
+  policySourceUrl: string;
+};
 
 export type Rate = {
   label: string;
@@ -67,7 +78,22 @@ export type ConnectorOutput = {
   screenshotUrl?: string;
   capturedAt: string;
   confidence: number;
+  brgPrediction?: BrgPrediction;
   failureReason?: string;
+};
+
+export type SearchPreset = {
+  id: string;
+  name: string;
+  adults: number;
+  rooms: number;
+  currency: string;
+  sources: Source[];
+  includeCash: boolean;
+  includePoints: boolean;
+  brgConditions: BrgConditions;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type DashboardData = {
@@ -81,6 +107,7 @@ export type DashboardData = {
     bookingUrl: string | null;
     agodaUrl: string | null;
   }>;
+  presets: SearchPreset[];
   runs: Array<{
     id: string;
     hotelName: string;
@@ -101,4 +128,18 @@ export type DashboardData = {
     expiresAt: string | null;
     status: string;
   }>;
+  policies: BrgPolicySummary[];
+};
+
+export type BrgPolicySummary = {
+  brand: Brand;
+  title: string;
+  reward: string;
+  claimWindow: string;
+  summary: string;
+  sourceUrl: string;
+  lastReviewedAt: string;
+  eligibilityRules: string[];
+  exclusions: string[];
+  baseScore: number;
 };

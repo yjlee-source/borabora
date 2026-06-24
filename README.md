@@ -8,6 +8,8 @@ Personal hotel BRG dashboard for favorite hotels. It stores your preferred Marri
 - API routes for hotels, credentials, search runs, search-run status, dashboard data, and promotion refresh.
 - Unified connector interface for `official`, `google`, `booking`, and `agoda`.
 - BRG same-condition filters for room keyword, bed type, cancellation policy, meal plan, taxes/fees, payment timing, and publicly bookable rates.
+- Saved search presets for reusable BRG options while hotel and dates remain per-search.
+- Policy-based BRG prediction badges using curated Marriott, Hilton, Hyatt, and Accor policy summaries.
 - Demo rate output when `BROWSERLESS_WS_ENDPOINT` is not configured, so the app can be tested before connecting Browserless or another remote Chromium service.
 - AES-256-GCM encryption for stored chain passwords. Passwords are never returned by the API.
 

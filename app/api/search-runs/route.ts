@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { runConnectors } from "@/lib/automation/connectors";
+import { predictBrgForResult } from "@/lib/brg-prediction";
 import { assertPersonalAccess } from "@/lib/security";
 import { searchRunSchema } from "@/lib/validation";
 import type { Brand, Source } from "@/lib/types";
@@ -41,12 +42,17 @@ export async function POST(request: Request) {
     };
 
     const results = await runConnectors(input, parsed.sources as Source[]);
-    const failedCount = results.filter((result) => result.failureReason && result.confidence === 0).length;
-    const status = failedCount === results.length ? "FAILED" : failedCount > 0 ? "PARTIAL" : "COMPLETED";
+    const officialDirectTotal = results.find((result) => result.source === "official")?.cashRates[0]?.amount;
+    const resultsWithPrediction = results.map((result) => ({
+      ...result,
+      brgPrediction: predictBrgForResult(hotel.brand as Brand, result, officialDirectTotal)
+    }));
+    const failedCount = resultsWithPrediction.filter((result) => result.failureReason && result.confidence === 0).length;
+    const status = failedCount === resultsWithPrediction.length ? "FAILED" : failedCount > 0 ? "PARTIAL" : "COMPLETED";
 
     await prisma.$transaction([
       prisma.rateResult.createMany({
-        data: results.map((result) => ({
+        data: resultsWithPrediction.map((result) => ({
           searchRunId: run.id,
           source: result.source,
           cashRatesJson: JSON.stringify(result.cashRates),
@@ -57,6 +63,7 @@ export async function POST(request: Request) {
           screenshotUrl: result.screenshotUrl,
           capturedAt: new Date(result.capturedAt),
           confidence: result.confidence,
+          brgPredictionJson: JSON.stringify(result.brgPrediction),
           failureReason: result.failureReason
         }))
       }),
@@ -69,7 +76,7 @@ export async function POST(request: Request) {
       })
     ]);
 
-    return NextResponse.json({ id: run.id, status, results }, { status: 201 });
+    return NextResponse.json({ id: run.id, status, results: resultsWithPrediction }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create search run." }, { status: 400 });
