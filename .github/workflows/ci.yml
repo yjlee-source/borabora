@@ -7,7 +7,7 @@ on:
 
 jobs:
   verify:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     env:
       DATABASE_URL: "file:./dev.db"
       APP_ENCRYPTION_KEY: ""
@@ -17,16 +17,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.7.0
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
