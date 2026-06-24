@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import {
   BookOpen,
   CalendarDays,
+  ChevronDown,
   CircleDollarSign,
   ExternalLink,
   Filter,
@@ -75,6 +76,7 @@ export function Dashboard({ initialData }: Props) {
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [presetName, setPresetName] = useState("");
   const [searchOptions, setSearchOptions] = useState<SearchOptions>(defaultSearchOptions);
+  const [openPanel, setOpenPanel] = useState<"options" | "hotels" | "account" | "promos" | "policies" | null>(null);
   const [hotelDraft, setHotelDraft] = useState({
     brand: "MARRIOTT" as Brand,
     name: "",
@@ -302,7 +304,7 @@ export function Dashboard({ initialData }: Props) {
         </div>
       ) : null}
 
-      <section className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+      <section className="grid gap-5 lg:grid-cols-[1fr_0.65fr]">
         <form action={createSearchRun} className="panel p-4 sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -315,30 +317,8 @@ export function Dashboard({ initialData }: Props) {
             </button>
           </div>
 
-          <div className="mb-5 grid gap-3 border-b border-ink/10 pb-4 lg:grid-cols-[1fr_1fr_auto_auto_auto]">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_0.55fr_0.55fr]">
             <div>
-              <label className="label" htmlFor="presetId">저장된 검색 옵션</label>
-              <select className="field" id="presetId" value={selectedPresetId} onChange={(event) => applyPreset(event.target.value)}>
-                <option value="">기본 옵션</option>
-                {data.presets.map((preset) => (
-                  <option key={preset.id} value={preset.id}>{preset.name}</option>
-                ))}
-              </select>
-            </div>
-            <TextInput label="프리셋 이름" name="presetName" value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder="도쿄 2인 무료취소" />
-            <button type="button" className="mt-5 inline-flex h-10 items-center justify-center gap-2 bg-moss px-3 text-sm font-semibold text-white disabled:opacity-50" style={{ borderRadius: 6 }} onClick={savePreset} disabled={isPending}>
-              <Save size={16} /> 저장
-            </button>
-            <button type="button" className="mt-5 inline-flex h-10 items-center justify-center gap-2 border border-ink/15 bg-white px-3 text-sm font-semibold disabled:opacity-50" style={{ borderRadius: 6 }} onClick={updatePreset} disabled={isPending || !selectedPresetId}>
-              <RefreshCw size={16} /> 수정
-            </button>
-            <button type="button" className="mt-5 icon-button" title="프리셋 삭제" onClick={deletePreset} disabled={isPending || !selectedPresetId}>
-              <Trash2 size={16} />
-            </button>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="sm:col-span-2">
               <label className="label" htmlFor="hotelId">호텔</label>
               <select className="field" id="hotelId" name="hotelId" value={selectedHotelId} onChange={(event) => setSelectedHotelId(event.target.value)}>
                 {data.hotels.map((hotel) => (
@@ -352,65 +332,18 @@ export function Dashboard({ initialData }: Props) {
             <TextInput label="체크아웃" name="checkOut" type="date" defaultValue={toDateInput(checkout)} />
             <TextInput label="성인" name="adults" type="number" value={searchOptions.adults} min="1" max="8" onChange={(event) => updateSearchOption("adults", Number(event.target.value || 1))} />
             <TextInput label="객실" name="rooms" type="number" value={searchOptions.rooms} min="1" max="4" onChange={(event) => updateSearchOption("rooms", Number(event.target.value || 1))} />
-            <TextInput label="통화" name="currency" value={searchOptions.currency} maxLength={3} onChange={(event) => updateSearchOption("currency", event.target.value.toUpperCase())} />
-            <div>
-              <span className="label">요금 종류</span>
-              <div className="flex h-10 items-center gap-4">
-                <Check name="includeCash" label="현금" checked={searchOptions.includeCash} onChange={(checked) => updateSearchOption("includeCash", checked)} />
-                <Check name="includePoints" label="포인트" checked={searchOptions.includePoints} onChange={(checked) => updateSearchOption("includePoints", checked)} />
-              </div>
-            </div>
           </div>
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-4">
-            {SOURCES.map((source) => (
-              <label key={source} className="flex items-center justify-between border border-ink/12 bg-paper px-3 py-2 text-sm" style={{ borderRadius: 6 }}>
-                <span>{sourceLabels[source]}</span>
-                <input name={source} type="checkbox" checked={searchOptions.sources.includes(source)} onChange={(event) => toggleSource(source, event.target.checked)} />
-              </label>
-            ))}
-          </div>
-
-          <div className="mt-5 border-t border-ink/10 pt-4">
-            <div className="mb-3 flex items-center gap-2">
-              <Filter size={18} className="text-coral" />
-              <h3 className="text-sm font-semibold">BRG 동일 조건 필터</h3>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <TextInput label="객실명 키워드" name="roomType" placeholder="Deluxe King" value={searchOptions.brgConditions.roomType || ""} onChange={(event) => updateCondition("roomType", event.target.value)} />
-              <SelectInput label="침대" name="bedType" options={[
-                ["any", "무관"],
-                ["king", "King"],
-                ["queen", "Queen"],
-                ["twin", "Twin"],
-                ["double", "Double"]
-              ]} value={searchOptions.brgConditions.bedType} onChange={(value) => updateCondition("bedType", value as BrgConditions["bedType"])} />
-              <SelectInput label="취소 조건" name="cancellation" options={[
-                ["any", "무관"],
-                ["free", "무료 취소"],
-                ["non_refundable", "환불불가"]
-              ]} value={searchOptions.brgConditions.cancellation} onChange={(value) => updateCondition("cancellation", value as BrgConditions["cancellation"])} />
-              <SelectInput label="식사 조건" name="mealPlan" options={[
-                ["any", "무관"],
-                ["room_only", "객실만"],
-                ["breakfast", "조식 포함"]
-              ]} value={searchOptions.brgConditions.mealPlan} onChange={(value) => updateCondition("mealPlan", value as BrgConditions["mealPlan"])} />
-              <SelectInput label="세금/수수료" name="taxPolicy" options={[
-                ["taxes_included", "총액 기준"],
-                ["any", "무관"]
-              ]} value={searchOptions.brgConditions.taxPolicy} onChange={(value) => updateCondition("taxPolicy", value as BrgConditions["taxPolicy"])} />
-              <SelectInput label="결제 방식" name="paymentTiming" options={[
-                ["any", "무관"],
-                ["pay_now", "즉시결제"],
-                ["pay_at_property", "현장결제"]
-              ]} value={searchOptions.brgConditions.paymentTiming} onChange={(value) => updateCondition("paymentTiming", value as BrgConditions["paymentTiming"])} />
-              <div className="flex min-h-10 items-end">
-                <Check name="requirePubliclyBookable" label="공개 예약 가능 요금만" checked={searchOptions.brgConditions.requirePubliclyBookable} onChange={(checked) => updateCondition("requirePubliclyBookable", checked)} />
-              </div>
-              <div className="flex min-h-10 items-end">
-                <Check name="strictMatch" label="조건 불명 결과 제외" checked={searchOptions.brgConditions.strictMatch} onChange={(checked) => updateCondition("strictMatch", checked)} />
-              </div>
-            </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink/10 pt-4">
+            <button type="button" className="inline-flex h-9 items-center gap-2 border border-ink/15 bg-white px-3 text-sm font-semibold" style={{ borderRadius: 6 }} onClick={() => togglePanel("options")}>
+              <Filter size={16} /> 검색 옵션 <ChevronDown size={15} />
+            </button>
+            <button type="button" className="inline-flex h-9 items-center gap-2 border border-ink/15 bg-white px-3 text-sm font-semibold" style={{ borderRadius: 6 }} onClick={() => togglePanel("hotels")}>
+              <Star size={16} /> 호텔 추가 <ChevronDown size={15} />
+            </button>
+            <span className="text-xs text-ink/58">
+              {selectedPreset ? selectedPreset.name : "기본 옵션"} · {searchOptions.sources.map((source) => sourceLabels[source]).join(", ")}
+            </span>
           </div>
 
           {selectedHotel ? (
@@ -425,42 +358,57 @@ export function Dashboard({ initialData }: Props) {
         </form>
 
         <section className="panel p-4 sm:p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <Star size={20} className="text-coral" />
-            <h2 className="text-lg font-semibold">즐겨찾기 추가</h2>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold text-moss">빠른 관리</div>
+              <h2 className="mt-1 text-lg font-semibold">필요할 때만 열기</h2>
+            </div>
           </div>
-          <form action={addHotel} className="grid gap-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="label" htmlFor="brand">브랜드</label>
-                <select className="field" id="brand" name="brand" value={hotelDraft.brand} onChange={(event) => setHotelDraft((current) => ({ ...current, brand: event.target.value as Brand }))}>
-                  {BRANDS.map((brand) => (
-                    <option key={brand} value={brand}>{brandLabels[brand]}</option>
-                  ))}
-                </select>
-              </div>
-              <TextInput label="지역" name="region" placeholder="Tokyo, Japan" value={hotelDraft.region} onChange={(event) => setHotelDraft((current) => ({ ...current, region: event.target.value }))} />
-            </div>
-            <TextInput label="호텔명" name="name" placeholder="Park Hyatt Tokyo" value={hotelDraft.name} onChange={(event) => setHotelDraft((current) => ({ ...current, name: event.target.value }))} />
-            <button type="button" className="inline-flex h-10 items-center justify-center gap-2 border border-moss/25 bg-moss/10 px-4 text-sm font-semibold text-moss disabled:opacity-50" style={{ borderRadius: 6 }} onClick={fillHotelLinks} disabled={isPending}>
-              <Search size={16} /> 검색 URL 채우기
-            </button>
-            <TextInput label="공홈 URL" name="officialUrl" type="url" placeholder="https://..." value={hotelDraft.officialUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, officialUrl: event.target.value }))} />
-            <div className="grid gap-3 sm:grid-cols-3">
-              <TextInput label="Google" name="googleUrl" type="url" placeholder="https://..." value={hotelDraft.googleUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, googleUrl: event.target.value }))} />
-              <TextInput label="Booking" name="bookingUrl" type="url" placeholder="https://..." value={hotelDraft.bookingUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, bookingUrl: event.target.value }))} />
-              <TextInput label="Agoda" name="agodaUrl" type="url" placeholder="https://..." value={hotelDraft.agodaUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, agodaUrl: event.target.value }))} />
-              <TextInput label="Expedia" name="expediaUrl" type="url" placeholder="https://..." value={hotelDraft.expediaUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, expediaUrl: event.target.value }))} />
-              <TextInput label="Hotels.com" name="hotelsUrl" type="url" placeholder="https://..." value={hotelDraft.hotelsUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, hotelsUrl: event.target.value }))} />
-            </div>
-            <button className="mt-1 inline-flex h-10 items-center justify-center gap-2 bg-moss px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ borderRadius: 6 }} disabled={isPending}>
-              <Plus size={16} /> 저장
-            </button>
-          </form>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <PanelButton icon={<Save size={16} />} label="프리셋" active={openPanel === "options"} onClick={() => togglePanel("options")} />
+            <PanelButton icon={<Star size={16} />} label="호텔" active={openPanel === "hotels"} onClick={() => togglePanel("hotels")} />
+            <PanelButton icon={<KeyRound size={16} />} label="로그인" active={openPanel === "account"} onClick={() => togglePanel("account")} />
+            <PanelButton icon={<Sparkles size={16} />} label="이벤트" active={openPanel === "promos"} onClick={() => togglePanel("promos")} />
+            <PanelButton icon={<BookOpen size={16} />} label="정책" active={openPanel === "policies"} onClick={() => togglePanel("policies")} />
+          </div>
         </section>
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-[1fr_0.8fr]">
+      {openPanel ? (
+        <section className="panel p-4 sm:p-5">
+          {openPanel === "options" ? (
+            <SearchOptionsPanel
+              data={data}
+              isPending={isPending}
+              selectedPresetId={selectedPresetId}
+              presetName={presetName}
+              searchOptions={searchOptions}
+              onApplyPreset={applyPreset}
+              onPresetNameChange={setPresetName}
+              onSavePreset={savePreset}
+              onUpdatePreset={updatePreset}
+              onDeletePreset={deletePreset}
+              onSearchOptionChange={updateSearchOption}
+              onConditionChange={updateCondition}
+              onToggleSource={toggleSource}
+            />
+          ) : null}
+          {openPanel === "hotels" ? (
+            <HotelPanel
+              hotelDraft={hotelDraft}
+              isPending={isPending}
+              onChange={setHotelDraft}
+              onFillHotelLinks={fillHotelLinks}
+              onAddHotel={addHotel}
+            />
+          ) : null}
+          {openPanel === "account" ? <AccountPanel isPending={isPending} onSaveCredential={saveCredential} /> : null}
+          {openPanel === "promos" ? <PromotionsPanel data={data} isPending={isPending} onRefreshPromotions={refreshPromotions} /> : null}
+          {openPanel === "policies" ? <PoliciesPanel data={data} /> : null}
+        </section>
+      ) : null}
+
+      <section className="grid gap-5">
         <section className="panel overflow-hidden">
           <div className="flex items-center justify-between border-b border-ink/10 px-4 py-3 sm:px-5">
             <div className="flex items-center gap-2">
@@ -476,78 +424,6 @@ export function Dashboard({ initialData }: Props) {
             )}
           </div>
         </section>
-
-        <aside className="grid gap-5">
-          <section className="panel p-4 sm:p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <KeyRound size={20} className="text-coral" />
-              <h2 className="text-lg font-semibold">체인 로그인</h2>
-            </div>
-            <form action={saveCredential} className="grid gap-3">
-              <div>
-                <label className="label" htmlFor="credentialBrand">브랜드</label>
-                <select className="field" id="credentialBrand" name="brand">
-                  {BRANDS.map((brand) => (
-                    <option key={brand} value={brand}>{brandLabels[brand]}</option>
-                  ))}
-                </select>
-              </div>
-              <TextInput label="아이디" name="username" autoComplete="username" />
-              <TextInput label="비밀번호" name="password" type="password" autoComplete="current-password" />
-              <button className="inline-flex h-10 items-center justify-center gap-2 bg-ink px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ borderRadius: 6 }} disabled={isPending}>
-                <ShieldCheck size={16} /> 암호화 저장
-              </button>
-            </form>
-          </section>
-
-          <section className="panel overflow-hidden">
-            <div className="flex items-center justify-between border-b border-ink/10 px-4 py-3 sm:px-5">
-              <div className="flex items-center gap-2">
-                <Sparkles size={20} className="text-coral" />
-                <h2 className="text-lg font-semibold">이벤트</h2>
-              </div>
-              <button className="icon-button" title="이벤트 새로고침" onClick={refreshPromotions} disabled={isPending}>
-                <RefreshCw size={16} />
-              </button>
-            </div>
-            <div className="divide-y divide-ink/10">
-              {data.promotions.length === 0 ? (
-                <Empty text="저장된 이벤트가 없습니다." />
-              ) : (
-                data.promotions.map((promotion) => (
-                  <a key={promotion.id} className="block px-4 py-3 transition hover:bg-paper sm:px-5" href={promotion.sourceUrl} target="_blank">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-semibold text-moss">{brandLabels[promotion.brand]}</span>
-                      <span className="text-xs text-ink/50">{promotion.status}</span>
-                    </div>
-                    <h3 className="mt-1 text-sm font-semibold">{promotion.title}</h3>
-                    <p className="mt-1 text-xs leading-5 text-ink/64">{promotion.summary}</p>
-                  </a>
-                ))
-              )}
-            </div>
-          </section>
-
-          <section className="panel overflow-hidden">
-            <div className="flex items-center gap-2 border-b border-ink/10 px-4 py-3 sm:px-5">
-              <BookOpen size={20} className="text-coral" />
-              <h2 className="text-lg font-semibold">BRG 정책</h2>
-            </div>
-            <div className="divide-y divide-ink/10">
-              {data.policies.map((policy) => (
-                <a key={policy.brand} className="block px-4 py-3 transition hover:bg-paper sm:px-5" href={policy.sourceUrl} target="_blank">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs font-semibold text-moss">{brandLabels[policy.brand]}</span>
-                    <span className="text-xs text-ink/50">검토 {policy.lastReviewedAt}</span>
-                  </div>
-                  <h3 className="mt-1 text-sm font-semibold">{policy.reward}</h3>
-                  <p className="mt-1 text-xs leading-5 text-ink/64">{policy.claimWindow}</p>
-                  <p className="mt-1 text-xs leading-5 text-ink/58">{policy.summary}</p>
-                </a>
-              ))}
-            </div>
-          </section>
-        </aside>
       </section>
     </main>
   );
@@ -574,6 +450,10 @@ export function Dashboard({ initialData }: Props) {
       return { ...current, sources: sources.length ? sources : [source] };
     });
   }
+
+  function togglePanel(panel: NonNullable<typeof openPanel>) {
+    setOpenPanel((current) => (current === panel ? null : panel));
+  }
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
@@ -581,6 +461,290 @@ function Metric({ label, value }: { label: string; value: number }) {
     <div className="px-5 py-3">
       <div className="text-xl font-semibold">{value}</div>
       <div className="text-xs text-ink/58">{label}</div>
+    </div>
+  );
+}
+
+function PanelButton({
+  icon,
+  label,
+  active,
+  onClick
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`inline-flex h-10 items-center justify-center gap-2 border px-3 text-sm font-semibold transition ${
+        active ? "border-moss bg-moss text-white" : "border-ink/15 bg-white hover:border-coral hover:text-coral"
+      }`}
+      style={{ borderRadius: 6 }}
+      onClick={onClick}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function SearchOptionsPanel({
+  data,
+  isPending,
+  selectedPresetId,
+  presetName,
+  searchOptions,
+  onApplyPreset,
+  onPresetNameChange,
+  onSavePreset,
+  onUpdatePreset,
+  onDeletePreset,
+  onSearchOptionChange,
+  onConditionChange,
+  onToggleSource
+}: {
+  data: DashboardData;
+  isPending: boolean;
+  selectedPresetId: string;
+  presetName: string;
+  searchOptions: SearchOptions;
+  onApplyPreset: (presetId: string) => void;
+  onPresetNameChange: (name: string) => void;
+  onSavePreset: () => void;
+  onUpdatePreset: () => void;
+  onDeletePreset: () => void;
+  onSearchOptionChange: <Key extends keyof SearchOptions>(key: Key, value: SearchOptions[Key]) => void;
+  onConditionChange: <Key extends keyof BrgConditions>(key: Key, value: BrgConditions[Key]) => void;
+  onToggleSource: (source: Source, checked: boolean) => void;
+}) {
+  return (
+    <div className="grid gap-5">
+      <div className="flex items-center gap-2">
+        <Filter size={20} className="text-coral" />
+        <h2 className="text-lg font-semibold">검색 옵션</h2>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto_auto_auto]">
+        <div>
+          <label className="label" htmlFor="presetIdPanel">저장된 검색 옵션</label>
+          <select className="field" id="presetIdPanel" value={selectedPresetId} onChange={(event) => onApplyPreset(event.target.value)}>
+            <option value="">기본 옵션</option>
+            {data.presets.map((preset) => (
+              <option key={preset.id} value={preset.id}>{preset.name}</option>
+            ))}
+          </select>
+        </div>
+        <TextInput label="프리셋 이름" name="presetNamePanel" value={presetName} onChange={(event) => onPresetNameChange(event.target.value)} placeholder="도쿄 2인 무료취소" />
+        <button type="button" className="mt-5 inline-flex h-10 items-center justify-center gap-2 bg-moss px-3 text-sm font-semibold text-white disabled:opacity-50" style={{ borderRadius: 6 }} onClick={onSavePreset} disabled={isPending}>
+          <Save size={16} /> 저장
+        </button>
+        <button type="button" className="mt-5 inline-flex h-10 items-center justify-center gap-2 border border-ink/15 bg-white px-3 text-sm font-semibold disabled:opacity-50" style={{ borderRadius: 6 }} onClick={onUpdatePreset} disabled={isPending || !selectedPresetId}>
+          <RefreshCw size={16} /> 수정
+        </button>
+        <button type="button" className="mt-5 icon-button" title="프리셋 삭제" onClick={onDeletePreset} disabled={isPending || !selectedPresetId}>
+          <Trash2 size={16} />
+        </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <TextInput label="통화" name="currencyPanel" value={searchOptions.currency} maxLength={3} onChange={(event) => onSearchOptionChange("currency", event.target.value.toUpperCase())} />
+        <div>
+          <span className="label">요금 종류</span>
+          <div className="flex h-10 items-center gap-4">
+            <Check name="includeCashPanel" label="현금" checked={searchOptions.includeCash} onChange={(checked) => onSearchOptionChange("includeCash", checked)} />
+            <Check name="includePointsPanel" label="포인트" checked={searchOptions.includePoints} onChange={(checked) => onSearchOptionChange("includePoints", checked)} />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {SOURCES.map((source) => (
+          <label key={source} className="flex items-center justify-between border border-ink/12 bg-paper px-3 py-2 text-sm" style={{ borderRadius: 6 }}>
+            <span>{sourceLabels[source]}</span>
+            <input type="checkbox" checked={searchOptions.sources.includes(source)} onChange={(event) => onToggleSource(source, event.target.checked)} />
+          </label>
+        ))}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <TextInput label="객실명 키워드" name="roomTypePanel" placeholder="Deluxe King" value={searchOptions.brgConditions.roomType || ""} onChange={(event) => onConditionChange("roomType", event.target.value)} />
+        <SelectInput label="침대" name="bedTypePanel" options={[
+          ["any", "무관"],
+          ["king", "King"],
+          ["queen", "Queen"],
+          ["twin", "Twin"],
+          ["double", "Double"]
+        ]} value={searchOptions.brgConditions.bedType} onChange={(value) => onConditionChange("bedType", value as BrgConditions["bedType"])} />
+        <SelectInput label="취소 조건" name="cancellationPanel" options={[
+          ["any", "무관"],
+          ["free", "무료 취소"],
+          ["non_refundable", "환불불가"]
+        ]} value={searchOptions.brgConditions.cancellation} onChange={(value) => onConditionChange("cancellation", value as BrgConditions["cancellation"])} />
+        <SelectInput label="식사 조건" name="mealPlanPanel" options={[
+          ["any", "무관"],
+          ["room_only", "객실만"],
+          ["breakfast", "조식 포함"]
+        ]} value={searchOptions.brgConditions.mealPlan} onChange={(value) => onConditionChange("mealPlan", value as BrgConditions["mealPlan"])} />
+        <SelectInput label="세금/수수료" name="taxPolicyPanel" options={[
+          ["taxes_included", "총액 기준"],
+          ["any", "무관"]
+        ]} value={searchOptions.brgConditions.taxPolicy} onChange={(value) => onConditionChange("taxPolicy", value as BrgConditions["taxPolicy"])} />
+        <SelectInput label="결제 방식" name="paymentTimingPanel" options={[
+          ["any", "무관"],
+          ["pay_now", "즉시결제"],
+          ["pay_at_property", "현장결제"]
+        ]} value={searchOptions.brgConditions.paymentTiming} onChange={(value) => onConditionChange("paymentTiming", value as BrgConditions["paymentTiming"])} />
+        <div className="flex min-h-10 items-end">
+          <Check name="requirePubliclyBookablePanel" label="공개 예약 가능 요금만" checked={searchOptions.brgConditions.requirePubliclyBookable} onChange={(checked) => onConditionChange("requirePubliclyBookable", checked)} />
+        </div>
+        <div className="flex min-h-10 items-end">
+          <Check name="strictMatchPanel" label="조건 불명 결과 제외" checked={searchOptions.brgConditions.strictMatch} onChange={(checked) => onConditionChange("strictMatch", checked)} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HotelPanel({
+  hotelDraft,
+  isPending,
+  onChange,
+  onFillHotelLinks,
+  onAddHotel
+}: {
+  hotelDraft: {
+    brand: Brand;
+    name: string;
+    region: string;
+    officialUrl: string;
+    googleUrl: string;
+    bookingUrl: string;
+    agodaUrl: string;
+    expediaUrl: string;
+    hotelsUrl: string;
+  };
+  isPending: boolean;
+  onChange: React.Dispatch<React.SetStateAction<typeof hotelDraft>>;
+  onFillHotelLinks: () => void;
+  onAddHotel: (formData: FormData) => void;
+}) {
+  return (
+    <div className="grid gap-4">
+      <div className="flex items-center gap-2">
+        <Star size={20} className="text-coral" />
+        <h2 className="text-lg font-semibold">즐겨찾기 추가</h2>
+      </div>
+      <form action={onAddHotel} className="grid gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="brandPanel">브랜드</label>
+            <select className="field" id="brandPanel" name="brand" value={hotelDraft.brand} onChange={(event) => onChange((current) => ({ ...current, brand: event.target.value as Brand }))}>
+              {BRANDS.map((brand) => (
+                <option key={brand} value={brand}>{brandLabels[brand]}</option>
+              ))}
+            </select>
+          </div>
+          <TextInput label="지역" name="region" placeholder="Tokyo, Japan" value={hotelDraft.region} onChange={(event) => onChange((current) => ({ ...current, region: event.target.value }))} />
+        </div>
+        <TextInput label="호텔명" name="name" placeholder="Park Hyatt Tokyo" value={hotelDraft.name} onChange={(event) => onChange((current) => ({ ...current, name: event.target.value }))} />
+        <button type="button" className="inline-flex h-10 items-center justify-center gap-2 border border-moss/25 bg-moss/10 px-4 text-sm font-semibold text-moss disabled:opacity-50" style={{ borderRadius: 6 }} onClick={onFillHotelLinks} disabled={isPending}>
+          <Search size={16} /> 검색 URL 채우기
+        </button>
+        <TextInput label="공홈 URL" name="officialUrl" type="url" placeholder="https://..." value={hotelDraft.officialUrl} onChange={(event) => onChange((current) => ({ ...current, officialUrl: event.target.value }))} />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <TextInput label="Google" name="googleUrl" type="url" placeholder="https://..." value={hotelDraft.googleUrl} onChange={(event) => onChange((current) => ({ ...current, googleUrl: event.target.value }))} />
+          <TextInput label="Booking" name="bookingUrl" type="url" placeholder="https://..." value={hotelDraft.bookingUrl} onChange={(event) => onChange((current) => ({ ...current, bookingUrl: event.target.value }))} />
+          <TextInput label="Agoda" name="agodaUrl" type="url" placeholder="https://..." value={hotelDraft.agodaUrl} onChange={(event) => onChange((current) => ({ ...current, agodaUrl: event.target.value }))} />
+          <TextInput label="Expedia" name="expediaUrl" type="url" placeholder="https://..." value={hotelDraft.expediaUrl} onChange={(event) => onChange((current) => ({ ...current, expediaUrl: event.target.value }))} />
+          <TextInput label="Hotels.com" name="hotelsUrl" type="url" placeholder="https://..." value={hotelDraft.hotelsUrl} onChange={(event) => onChange((current) => ({ ...current, hotelsUrl: event.target.value }))} />
+        </div>
+        <button className="inline-flex h-10 items-center justify-center gap-2 bg-moss px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ borderRadius: 6 }} disabled={isPending}>
+          <Plus size={16} /> 저장
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function AccountPanel({ isPending, onSaveCredential }: { isPending: boolean; onSaveCredential: (formData: FormData) => void }) {
+  return (
+    <form action={onSaveCredential} className="grid gap-3 sm:grid-cols-3">
+      <div className="sm:col-span-3 flex items-center gap-2">
+        <KeyRound size={20} className="text-coral" />
+        <h2 className="text-lg font-semibold">체인 로그인</h2>
+      </div>
+      <div>
+        <label className="label" htmlFor="credentialBrand">브랜드</label>
+        <select className="field" id="credentialBrand" name="brand">
+          {BRANDS.map((brand) => (
+            <option key={brand} value={brand}>{brandLabels[brand]}</option>
+          ))}
+        </select>
+      </div>
+      <TextInput label="아이디" name="username" autoComplete="username" />
+      <TextInput label="비밀번호" name="password" type="password" autoComplete="current-password" />
+      <button className="inline-flex h-10 items-center justify-center gap-2 bg-ink px-4 text-sm font-semibold text-white disabled:opacity-50 sm:col-span-3" style={{ borderRadius: 6 }} disabled={isPending}>
+        <ShieldCheck size={16} /> 암호화 저장
+      </button>
+    </form>
+  );
+}
+
+function PromotionsPanel({ data, isPending, onRefreshPromotions }: { data: DashboardData; isPending: boolean; onRefreshPromotions: () => void }) {
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Sparkles size={20} className="text-coral" />
+          <h2 className="text-lg font-semibold">이벤트</h2>
+        </div>
+        <button className="icon-button" title="이벤트 새로고침" onClick={onRefreshPromotions} disabled={isPending}>
+          <RefreshCw size={16} />
+        </button>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        {data.promotions.length === 0 ? (
+          <Empty text="저장된 이벤트가 없습니다." />
+        ) : (
+          data.promotions.map((promotion) => (
+            <a key={promotion.id} className="block border border-ink/10 bg-paper px-4 py-3 transition hover:bg-white" style={{ borderRadius: 6 }} href={promotion.sourceUrl} target="_blank">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-semibold text-moss">{brandLabels[promotion.brand]}</span>
+                <span className="text-xs text-ink/50">{promotion.status}</span>
+              </div>
+              <h3 className="mt-1 text-sm font-semibold">{promotion.title}</h3>
+              <p className="mt-1 text-xs leading-5 text-ink/64">{promotion.summary}</p>
+            </a>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PoliciesPanel({ data }: { data: DashboardData }) {
+  return (
+    <div>
+      <div className="mb-3 flex items-center gap-2">
+        <BookOpen size={20} className="text-coral" />
+        <h2 className="text-lg font-semibold">BRG 정책</h2>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        {data.policies.map((policy) => (
+          <a key={policy.brand} className="block border border-ink/10 bg-paper px-4 py-3 transition hover:bg-white" style={{ borderRadius: 6 }} href={policy.sourceUrl} target="_blank">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold text-moss">{brandLabels[policy.brand]}</span>
+              <span className="text-xs text-ink/50">검토 {policy.lastReviewedAt}</span>
+            </div>
+            <h3 className="mt-1 text-sm font-semibold">{policy.reward}</h3>
+            <p className="mt-1 text-xs leading-5 text-ink/64">{policy.claimWindow}</p>
+            <p className="mt-1 text-xs leading-5 text-ink/58">{policy.summary}</p>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
