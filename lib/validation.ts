@@ -21,7 +21,9 @@ export const hotelSchema = z.object({
   officialUrl: z.string().url(),
   googleUrl: z.string().url().optional().or(z.literal("")),
   bookingUrl: z.string().url().optional().or(z.literal("")),
-  agodaUrl: z.string().url().optional().or(z.literal(""))
+  agodaUrl: z.string().url().optional().or(z.literal("")),
+  expediaUrl: z.string().url().optional().or(z.literal("")),
+  hotelsUrl: z.string().url().optional().or(z.literal(""))
 });
 
 export const searchRunSchema = z
@@ -32,7 +34,7 @@ export const searchRunSchema = z
     adults: z.coerce.number().int().min(1).max(8).default(2),
     rooms: z.coerce.number().int().min(1).max(4).default(1),
     currency: z.string().min(3).max(3).default("KRW"),
-    sources: z.array(z.enum(SOURCES)).min(1).default(["official", "google", "booking", "agoda"]),
+    sources: z.array(z.enum(SOURCES)).min(1).default(["official", "google", "booking", "agoda", "expedia", "hotels"]),
     includeCash: z.boolean().default(true),
     includePoints: z.boolean().default(true),
     brgConditions: brgConditionsSchema.default({})
@@ -54,7 +56,7 @@ export const searchPresetSchema = z.object({
   adults: z.coerce.number().int().min(1).max(8).default(2),
   rooms: z.coerce.number().int().min(1).max(4).default(1),
   currency: z.string().min(3).max(3).default("KRW"),
-  sources: z.array(z.enum(SOURCES)).min(1).default(["official", "google", "booking", "agoda"]),
+  sources: z.array(z.enum(SOURCES)).min(1).default(["official", "google", "booking", "agoda", "expedia", "hotels"]),
   includeCash: z.boolean().default(true),
   includePoints: z.boolean().default(true),
   brgConditions: brgConditionsSchema.default({})

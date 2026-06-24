@@ -15,7 +15,9 @@ async function main() {
         officialUrl: "https://www.marriott.com/",
         googleUrl: "https://www.google.com/travel/hotels",
         bookingUrl: "https://www.booking.com/",
-        agodaUrl: "https://www.agoda.com/"
+        agodaUrl: "https://www.agoda.com/",
+        expediaUrl: "https://www.expedia.com/Hotel-Search",
+        hotelsUrl: "https://www.hotels.com/Hotel-Search"
       },
       {
         brand: "HILTON",
@@ -24,7 +26,9 @@ async function main() {
         officialUrl: "https://www.hilton.com/",
         googleUrl: "https://www.google.com/travel/hotels",
         bookingUrl: "https://www.booking.com/",
-        agodaUrl: "https://www.agoda.com/"
+        agodaUrl: "https://www.agoda.com/",
+        expediaUrl: "https://www.expedia.com/Hotel-Search",
+        hotelsUrl: "https://www.hotels.com/Hotel-Search"
       },
       {
         brand: "HYATT",
@@ -33,7 +37,9 @@ async function main() {
         officialUrl: "https://www.hyatt.com/",
         googleUrl: "https://www.google.com/travel/hotels",
         bookingUrl: "https://www.booking.com/",
-        agodaUrl: "https://www.agoda.com/"
+        agodaUrl: "https://www.agoda.com/",
+        expediaUrl: "https://www.expedia.com/Hotel-Search",
+        hotelsUrl: "https://www.hotels.com/Hotel-Search"
       },
       {
         brand: "ACCOR",
@@ -42,7 +48,9 @@ async function main() {
         officialUrl: "https://all.accor.com/",
         googleUrl: "https://www.google.com/travel/hotels",
         bookingUrl: "https://www.booking.com/",
-        agodaUrl: "https://www.agoda.com/"
+        agodaUrl: "https://www.agoda.com/",
+        expediaUrl: "https://www.expedia.com/Hotel-Search",
+        hotelsUrl: "https://www.hotels.com/Hotel-Search"
       }
     ]
   });

@@ -1,5 +1,5 @@
 export const BRANDS = ["MARRIOTT", "HILTON", "HYATT", "ACCOR"] as const;
-export const SOURCES = ["official", "google", "booking", "agoda"] as const;
+export const SOURCES = ["official", "google", "booking", "agoda", "expedia", "hotels"] as const;
 
 export type Brand = (typeof BRANDS)[number];
 export type Source = (typeof SOURCES)[number];
@@ -57,6 +57,8 @@ export type ConnectorInput = {
     googleUrl?: string | null;
     bookingUrl?: string | null;
     agodaUrl?: string | null;
+    expediaUrl?: string | null;
+    hotelsUrl?: string | null;
   };
   checkIn: string;
   checkOut: string;
@@ -106,6 +108,8 @@ export type DashboardData = {
     googleUrl: string | null;
     bookingUrl: string | null;
     agodaUrl: string | null;
+    expediaUrl: string | null;
+    hotelsUrl: string | null;
   }>;
   presets: SearchPreset[];
   runs: Array<{

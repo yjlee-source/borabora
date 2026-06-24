@@ -7,7 +7,9 @@ const pickers: Record<Source, UrlPicker> = {
   official: (input) => input.hotel.officialUrl,
   google: (input) => input.hotel.googleUrl,
   booking: (input) => input.hotel.bookingUrl,
-  agoda: (input) => input.hotel.agodaUrl
+  agoda: (input) => input.hotel.agodaUrl,
+  expedia: (input) => input.hotel.expediaUrl,
+  hotels: (input) => input.hotel.hotelsUrl
 };
 
 export async function runConnectors(input: ConnectorInput, sources: Source[]) {
@@ -144,6 +146,10 @@ function demoConditionReview(source: Source, conditions: BrgConditions): { match
 
   if (source === "google") {
     return { match: "UNKNOWN", notes: [...notes, "Google 결과는 실제 OTA 조건 확인 필요"] };
+  }
+
+  if (source === "expedia" || source === "hotels") {
+    return { match: "MATCH", notes: [...notes, "Expedia Group 공개 요금 후보로 간주"] };
   }
 
   return { match: "MATCH", notes: [...notes, "데모상 공개 환불가능 요금으로 간주"] };

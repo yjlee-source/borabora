@@ -72,6 +72,16 @@ export function predictBrgForResult(brand: Brand, result: ConnectorOutput, offic
     score -= 6;
   }
 
+  if (result.source === "expedia" || result.source === "hotels") {
+    positiveFactors.push("Expedia Group 공개 OTA 요금은 BRG 비교 후보로 쓰기 좋습니다.");
+    score += 5;
+  }
+
+  if (result.source === "agoda") {
+    riskFactors.push("Agoda는 세금/수수료와 결제 조건 표시를 추가 확인하는 편이 안전합니다.");
+    score -= 6;
+  }
+
   if (brand === "HYATT" && firstRate?.conditionNotes?.some((note) => note.includes("조식"))) {
     riskFactors.push("Hyatt는 room-only 비교가 더 안전합니다.");
     score -= 8;

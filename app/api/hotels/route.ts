@@ -17,7 +17,9 @@ export async function POST(request: Request) {
         officialUrl: parsed.officialUrl,
         googleUrl: parsed.googleUrl || null,
         bookingUrl: parsed.bookingUrl || null,
-        agodaUrl: parsed.agodaUrl || null
+        agodaUrl: parsed.agodaUrl || null,
+        expediaUrl: parsed.expediaUrl || null,
+        hotelsUrl: parsed.hotelsUrl || null
       }
     });
 

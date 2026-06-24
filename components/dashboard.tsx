@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Search,
   ShieldCheck,
   Sparkles,
   Star,
@@ -34,7 +35,9 @@ const sourceLabels: Record<Source, string> = {
   official: "공홈",
   google: "Google",
   booking: "Booking",
-  agoda: "Agoda"
+  agoda: "Agoda",
+  expedia: "Expedia",
+  hotels: "Hotels.com"
 };
 
 type SearchOptions = {
@@ -72,6 +75,17 @@ export function Dashboard({ initialData }: Props) {
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [presetName, setPresetName] = useState("");
   const [searchOptions, setSearchOptions] = useState<SearchOptions>(defaultSearchOptions);
+  const [hotelDraft, setHotelDraft] = useState({
+    brand: "MARRIOTT" as Brand,
+    name: "",
+    region: "",
+    officialUrl: "",
+    googleUrl: "",
+    bookingUrl: "",
+    agodaUrl: "",
+    expediaUrl: "",
+    hotelsUrl: ""
+  });
   const [isPending, startTransition] = useTransition();
   const [notice, setNotice] = useState("");
 
@@ -190,6 +204,18 @@ export function Dashboard({ initialData }: Props) {
       setNotice(response.ok ? "호텔을 저장했습니다." : body.error || "호텔 저장에 실패했습니다.");
       await refreshDashboard();
     });
+  }
+
+  function fillHotelLinks() {
+    if (!hotelDraft.name.trim() || !hotelDraft.region.trim()) {
+      setNotice("호텔명과 지역을 먼저 입력해주세요.");
+      return;
+    }
+    setNotice("검색 URL을 채웠습니다. 필요하면 저장 전에 수정할 수 있어요.");
+    setHotelDraft((current) => ({
+      ...current,
+      ...buildHotelLinks(current.brand, current.name, current.region)
+    }));
   }
 
   async function saveCredential(formData: FormData) {
@@ -372,20 +398,25 @@ export function Dashboard({ initialData }: Props) {
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="label" htmlFor="brand">브랜드</label>
-                <select className="field" id="brand" name="brand">
+                <select className="field" id="brand" name="brand" value={hotelDraft.brand} onChange={(event) => setHotelDraft((current) => ({ ...current, brand: event.target.value as Brand }))}>
                   {BRANDS.map((brand) => (
                     <option key={brand} value={brand}>{brandLabels[brand]}</option>
                   ))}
                 </select>
               </div>
-              <TextInput label="지역" name="region" placeholder="Tokyo, Japan" />
+              <TextInput label="지역" name="region" placeholder="Tokyo, Japan" value={hotelDraft.region} onChange={(event) => setHotelDraft((current) => ({ ...current, region: event.target.value }))} />
             </div>
-            <TextInput label="호텔명" name="name" placeholder="Park Hyatt Tokyo" />
-            <TextInput label="공홈 URL" name="officialUrl" type="url" placeholder="https://..." />
+            <TextInput label="호텔명" name="name" placeholder="Park Hyatt Tokyo" value={hotelDraft.name} onChange={(event) => setHotelDraft((current) => ({ ...current, name: event.target.value }))} />
+            <button type="button" className="inline-flex h-10 items-center justify-center gap-2 border border-moss/25 bg-moss/10 px-4 text-sm font-semibold text-moss disabled:opacity-50" style={{ borderRadius: 6 }} onClick={fillHotelLinks} disabled={isPending}>
+              <Search size={16} /> 검색 URL 채우기
+            </button>
+            <TextInput label="공홈 URL" name="officialUrl" type="url" placeholder="https://..." value={hotelDraft.officialUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, officialUrl: event.target.value }))} />
             <div className="grid gap-3 sm:grid-cols-3">
-              <TextInput label="Google" name="googleUrl" type="url" placeholder="https://..." />
-              <TextInput label="Booking" name="bookingUrl" type="url" placeholder="https://..." />
-              <TextInput label="Agoda" name="agodaUrl" type="url" placeholder="https://..." />
+              <TextInput label="Google" name="googleUrl" type="url" placeholder="https://..." value={hotelDraft.googleUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, googleUrl: event.target.value }))} />
+              <TextInput label="Booking" name="bookingUrl" type="url" placeholder="https://..." value={hotelDraft.bookingUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, bookingUrl: event.target.value }))} />
+              <TextInput label="Agoda" name="agodaUrl" type="url" placeholder="https://..." value={hotelDraft.agodaUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, agodaUrl: event.target.value }))} />
+              <TextInput label="Expedia" name="expediaUrl" type="url" placeholder="https://..." value={hotelDraft.expediaUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, expediaUrl: event.target.value }))} />
+              <TextInput label="Hotels.com" name="hotelsUrl" type="url" placeholder="https://..." value={hotelDraft.hotelsUrl} onChange={(event) => setHotelDraft((current) => ({ ...current, hotelsUrl: event.target.value }))} />
             </div>
             <button className="mt-1 inline-flex h-10 items-center justify-center gap-2 bg-moss px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ borderRadius: 6 }} disabled={isPending}>
               <Plus size={16} /> 저장
@@ -750,4 +781,28 @@ function presetPayload(name: string, options: SearchOptions) {
     includePoints: options.includePoints,
     brgConditions: options.brgConditions
   };
+}
+
+function buildHotelLinks(brand: Brand, name: string, region: string) {
+  const query = `${name} ${region}`.replace(/\s+/g, " ").trim();
+  const encoded = encodeURIComponent(query);
+
+  return {
+    officialUrl: officialSearchUrl(brand, encoded),
+    googleUrl: `https://www.google.com/travel/hotels?q=${encoded}`,
+    bookingUrl: `https://www.booking.com/searchresults.html?ss=${encoded}`,
+    agodaUrl: `https://www.agoda.com/search?textToSearch=${encoded}`,
+    expediaUrl: `https://www.expedia.com/Hotel-Search?destination=${encoded}`,
+    hotelsUrl: `https://www.hotels.com/Hotel-Search?destination=${encoded}`
+  };
+}
+
+function officialSearchUrl(brand: Brand, encodedQuery: string) {
+  const urls: Record<Brand, string> = {
+    MARRIOTT: `https://www.marriott.com/search/findHotels.mi?destinationAddress.destination=${encodedQuery}`,
+    HILTON: `https://www.hilton.com/en/search/?query=${encodedQuery}`,
+    HYATT: `https://www.hyatt.com/search?location=${encodedQuery}`,
+    ACCOR: `https://all.accor.com/search/index.en.shtml?destination=${encodedQuery}`
+  };
+  return urls[brand];
 }
