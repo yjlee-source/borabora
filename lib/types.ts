@@ -114,10 +114,15 @@ export type DashboardData = {
   presets: SearchPreset[];
   runs: Array<{
     id: string;
+    hotelId: string;
     hotelName: string;
     brand: Brand;
     checkIn: string;
     checkOut: string;
+    adults: number;
+    rooms: number;
+    currency: string;
+    sources: Source[];
     status: string;
     createdAt: string;
     brgConditions: BrgConditions;

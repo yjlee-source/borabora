@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { assertPersonalAccess } from "@/lib/security";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -18,6 +19,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     hotel: run.hotel,
     checkIn: run.checkIn,
     checkOut: run.checkOut,
+    adults: run.adults,
+    rooms: run.rooms,
+    currency: run.currency,
+    sources: run.sources.split(",").filter(Boolean),
     brgConditions: JSON.parse(run.brgConditionsJson),
     results: run.results.map((result) => ({
       source: result.source,
@@ -33,4 +38,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       failureReason: result.failureReason
     }))
   });
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    assertPersonalAccess(request);
+    const { id } = await params;
+    await prisma.searchRun.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to delete search run." }, { status: 400 });
+  }
 }

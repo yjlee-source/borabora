@@ -240,6 +240,41 @@ export function Dashboard({ initialData }: Props) {
     });
   }
 
+  async function deleteRun(runId: string) {
+    setNotice("");
+    startTransition(async () => {
+      const response = await fetch(`/api/search-runs/${runId}`, { method: "DELETE" });
+      const body = await response.json();
+      setNotice(response.ok ? "최근 결과를 삭제했습니다." : body.error || "삭제에 실패했습니다.");
+      await refreshDashboard();
+    });
+  }
+
+  async function rerunSearch(run: DashboardData["runs"][number]) {
+    setNotice("");
+    startTransition(async () => {
+      const response = await fetch("/api/search-runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hotelId: run.hotelId,
+          checkIn: run.checkIn.slice(0, 10),
+          checkOut: run.checkOut.slice(0, 10),
+          adults: run.adults,
+          rooms: run.rooms,
+          currency: run.currency,
+          sources: run.sources,
+          includeCash: true,
+          includePoints: true,
+          brgConditions: run.brgConditions
+        })
+      });
+      const body = await response.json();
+      setNotice(response.ok ? "현재 시점 기준으로 다시 조회했습니다." : body.error || "재조회에 실패했습니다.");
+      await refreshDashboard();
+    });
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-4 border-b border-ink/10 pb-5 md:flex-row md:items-end md:justify-between">
@@ -437,7 +472,7 @@ export function Dashboard({ initialData }: Props) {
             {data.runs.length === 0 ? (
               <Empty text="아직 조회 결과가 없습니다." />
             ) : (
-              data.runs.map((run) => <RunResult key={run.id} run={run} />)
+              data.runs.map((run) => <RunResult key={run.id} run={run} isPending={isPending} onDelete={deleteRun} onRefresh={rerunSearch} />)
             )}
           </div>
         </section>
@@ -604,7 +639,17 @@ function Check({
   );
 }
 
-function RunResult({ run }: { run: DashboardData["runs"][number] }) {
+function RunResult({
+  run,
+  isPending,
+  onDelete,
+  onRefresh
+}: {
+  run: DashboardData["runs"][number];
+  isPending: boolean;
+  onDelete: (runId: string) => void;
+  onRefresh: (run: DashboardData["runs"][number]) => void;
+}) {
   const cheapest = run.results
     .flatMap((result) => result.cashRates.map((rate) => ({ ...rate, source: result.source })))
     .filter((rate) => rate.conditionMatch === "MATCH" || (!run.brgConditions.strictMatch && rate.conditionMatch === "UNKNOWN"))
@@ -620,13 +665,23 @@ function RunResult({ run }: { run: DashboardData["runs"][number] }) {
             {formatDate(run.checkIn)} - {formatDate(run.checkOut)}
           </p>
         </div>
-        {cheapest ? (
-          <div className="text-left sm:text-right">
-            <div className="text-xs text-ink/55">최저 후보</div>
-            <div className="text-lg font-semibold">{cheapest.amount.toLocaleString()} {cheapest.currency}</div>
-            <div className="text-xs text-ink/55">{sourceLabels[cheapest.source]}</div>
+        <div className="flex flex-col gap-3 sm:items-end">
+          <div className="flex gap-2">
+            <button className="icon-button" title="현재 시점으로 다시 조회" type="button" onClick={() => onRefresh(run)} disabled={isPending}>
+              <RefreshCw size={16} />
+            </button>
+            <button className="icon-button" title="최근 결과 삭제" type="button" onClick={() => onDelete(run.id)} disabled={isPending}>
+              <Trash2 size={16} />
+            </button>
           </div>
-        ) : null}
+          {cheapest ? (
+            <div className="text-left sm:text-right">
+              <div className="text-xs text-ink/55">최저 후보</div>
+              <div className="text-lg font-semibold">{cheapest.amount.toLocaleString()} {cheapest.currency}</div>
+              <div className="text-xs text-ink/55">{sourceLabels[cheapest.source]}</div>
+            </div>
+          ) : null}
+        </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-ink/58">
         <span className="border border-ink/10 bg-white px-2 py-1" style={{ borderRadius: 999 }}>
