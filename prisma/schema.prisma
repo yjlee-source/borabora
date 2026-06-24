@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Hotel {
+  id          String      @id @default(cuid())
+  brand       String
+  name        String
+  region      String
+  officialUrl String
+  googleUrl   String?
+  bookingUrl  String?
+  agodaUrl    String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  searchRuns  SearchRun[]
+
+  @@index([brand])
+}
+
+model SearchRun {
+  id          String       @id @default(cuid())
+  hotelId     String
+  hotel       Hotel        @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  checkIn     DateTime
+  checkOut    DateTime
+  adults      Int
+  rooms       Int
+  currency    String
+  sources     String
+  brgConditionsJson String @default("{}")
+  status      String   @default("QUEUED")
+  failureNote String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  results     RateResult[]
+}
+
+model RateResult {
+  id                 String    @id @default(cuid())
+  searchRunId        String
+  searchRun          SearchRun @relation(fields: [searchRunId], references: [id], onDelete: Cascade)
+  source             String
+  cashRatesJson      String
+  pointsRatesJson    String
+  feesIncluded       Boolean
+  cancellationPolicy String?
+  sourceUrl          String
+  screenshotUrl      String?
+  capturedAt         DateTime
+  confidence         Float
+  failureReason      String?
+
+  @@index([searchRunId])
+}
+
+model Credential {
+  id                 String           @id @default(cuid())
+  brand              String           @unique
+  username           String
+  encryptedPassword  String
+  encryptionMetaJson String
+  status             String           @default("READY")
+  lastUsedAt         DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+model Promotion {
+  id         String          @id @default(cuid())
+  brand      String
+  title      String
+  summary    String
+  sourceUrl  String
+  expiresAt  DateTime?
+  status     String          @default("DRAFT")
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([brand, status])
+}

@@ -1,0 +1,530 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import {
+  CalendarDays,
+  CircleDollarSign,
+  ExternalLink,
+  Filter,
+  KeyRound,
+  Loader2,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  Star
+} from "lucide-react";
+import { BRANDS, SOURCES, type Brand, type DashboardData, type Source } from "@/lib/types";
+
+type Props = {
+  initialData: DashboardData;
+};
+
+const brandLabels: Record<Brand, string> = {
+  MARRIOTT: "Marriott",
+  HILTON: "Hilton",
+  HYATT: "Hyatt",
+  ACCOR: "Accor"
+};
+
+const sourceLabels: Record<Source, string> = {
+  official: "공홈",
+  google: "Google",
+  booking: "Booking",
+  agoda: "Agoda"
+};
+
+export function Dashboard({ initialData }: Props) {
+  const [data, setData] = useState(initialData);
+  const [selectedHotelId, setSelectedHotelId] = useState(initialData.hotels[0]?.id ?? "");
+  const [isPending, startTransition] = useTransition();
+  const [notice, setNotice] = useState("");
+
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const checkout = new Date(today);
+  checkout.setDate(today.getDate() + 3);
+
+  const selectedHotel = useMemo(
+    () => data.hotels.find((hotel) => hotel.id === selectedHotelId),
+    [data.hotels, selectedHotelId]
+  );
+
+  async function refreshDashboard() {
+    const response = await fetch("/api/dashboard", { cache: "no-store" });
+    setData(await response.json());
+  }
+
+  async function createSearchRun(formData: FormData) {
+    setNotice("");
+    const sources = SOURCES.filter((source) => formData.get(source) === "on");
+    const payload = {
+      hotelId: formData.get("hotelId"),
+      checkIn: formData.get("checkIn"),
+      checkOut: formData.get("checkOut"),
+      adults: Number(formData.get("adults") || 2),
+      rooms: Number(formData.get("rooms") || 1),
+      currency: formData.get("currency") || "KRW",
+      includeCash: formData.get("includeCash") === "on",
+      includePoints: formData.get("includePoints") === "on",
+      brgConditions: {
+        roomType: formData.get("roomType") || "",
+        bedType: formData.get("bedType") || "any",
+        cancellation: formData.get("cancellation") || "free",
+        mealPlan: formData.get("mealPlan") || "any",
+        taxPolicy: formData.get("taxPolicy") || "taxes_included",
+        paymentTiming: formData.get("paymentTiming") || "any",
+        requirePubliclyBookable: formData.get("requirePubliclyBookable") === "on",
+        strictMatch: formData.get("strictMatch") === "on"
+      },
+      sources
+    };
+
+    startTransition(async () => {
+      const response = await fetch("/api/search-runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const body = await response.json();
+      setNotice(response.ok ? "조회가 완료되었습니다." : body.error || "조회에 실패했습니다.");
+      await refreshDashboard();
+    });
+  }
+
+  async function addHotel(formData: FormData) {
+    setNotice("");
+    startTransition(async () => {
+      const response = await fetch("/api/hotels", {
+        method: "POST",
+        body: formData
+      });
+      const body = await response.json();
+      setNotice(response.ok ? "호텔을 저장했습니다." : body.error || "호텔 저장에 실패했습니다.");
+      await refreshDashboard();
+    });
+  }
+
+  async function saveCredential(formData: FormData) {
+    setNotice("");
+    startTransition(async () => {
+      const response = await fetch("/api/credentials", {
+        method: "POST",
+        body: formData
+      });
+      const body = await response.json();
+      setNotice(response.ok ? "로그인 정보를 암호화해 저장했습니다." : body.error || "저장에 실패했습니다.");
+    });
+  }
+
+  async function refreshPromotions() {
+    setNotice("");
+    startTransition(async () => {
+      const response = await fetch("/api/promotions/refresh", { method: "POST" });
+      const body = await response.json();
+      setNotice(response.ok ? "프로모션 초안을 새로 불러왔습니다." : body.error || "프로모션 갱신에 실패했습니다.");
+      await refreshDashboard();
+    });
+  }
+
+  return (
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
+      <header className="flex flex-col gap-4 border-b border-ink/10 pb-5 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-moss">
+            <ShieldCheck size={18} />
+            Personal BRG desk
+          </div>
+          <h1 className="text-3xl font-semibold tracking-normal text-ink sm:text-4xl">BoraBora BRG</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/68">
+            즐겨찾기 호텔만 골라 공홈과 주요 써드파티 요금을 한 번에 비교합니다. 실제 자동화 설정 전에는
+            데모 요금으로 전체 흐름을 확인할 수 있습니다.
+          </p>
+        </div>
+        <div className="panel grid grid-cols-3 divide-x divide-ink/10 overflow-hidden text-center">
+          <Metric label="호텔" value={data.hotels.length} />
+          <Metric label="최근 조회" value={data.runs.length} />
+          <Metric label="이벤트" value={data.promotions.length} />
+        </div>
+      </header>
+
+      {notice ? (
+        <div className="border border-coral/30 bg-coral/10 px-4 py-3 text-sm text-ink" style={{ borderRadius: 8 }}>
+          {notice}
+        </div>
+      ) : null}
+
+      <section className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+        <form action={createSearchRun} className="panel p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <CalendarDays size={20} className="text-coral" />
+              <h2 className="text-lg font-semibold">요금 업데이트</h2>
+            </div>
+            <button className="inline-flex items-center gap-2 bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ borderRadius: 6 }} disabled={isPending}>
+              {isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+              업데이트
+            </button>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="hotelId">호텔</label>
+              <select className="field" id="hotelId" name="hotelId" value={selectedHotelId} onChange={(event) => setSelectedHotelId(event.target.value)}>
+                {data.hotels.map((hotel) => (
+                  <option key={hotel.id} value={hotel.id}>
+                    {brandLabels[hotel.brand]} · {hotel.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <TextInput label="체크인" name="checkIn" type="date" defaultValue={toDateInput(tomorrow)} />
+            <TextInput label="체크아웃" name="checkOut" type="date" defaultValue={toDateInput(checkout)} />
+            <TextInput label="성인" name="adults" type="number" defaultValue="2" min="1" max="8" />
+            <TextInput label="객실" name="rooms" type="number" defaultValue="1" min="1" max="4" />
+            <TextInput label="통화" name="currency" defaultValue="KRW" maxLength={3} />
+            <div>
+              <span className="label">요금 종류</span>
+              <div className="flex h-10 items-center gap-4">
+                <Check name="includeCash" label="현금" defaultChecked />
+                <Check name="includePoints" label="포인트" defaultChecked />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-4">
+            {SOURCES.map((source) => (
+              <label key={source} className="flex items-center justify-between border border-ink/12 bg-paper px-3 py-2 text-sm" style={{ borderRadius: 6 }}>
+                <span>{sourceLabels[source]}</span>
+                <input name={source} type="checkbox" defaultChecked />
+              </label>
+            ))}
+          </div>
+
+          <div className="mt-5 border-t border-ink/10 pt-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Filter size={18} className="text-coral" />
+              <h3 className="text-sm font-semibold">BRG 동일 조건 필터</h3>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <TextInput label="객실명 키워드" name="roomType" placeholder="Deluxe King" />
+              <SelectInput label="침대" name="bedType" options={[
+                ["any", "무관"],
+                ["king", "King"],
+                ["queen", "Queen"],
+                ["twin", "Twin"],
+                ["double", "Double"]
+              ]} />
+              <SelectInput label="취소 조건" name="cancellation" defaultValue="free" options={[
+                ["any", "무관"],
+                ["free", "무료 취소"],
+                ["non_refundable", "환불불가"]
+              ]} />
+              <SelectInput label="식사 조건" name="mealPlan" options={[
+                ["any", "무관"],
+                ["room_only", "객실만"],
+                ["breakfast", "조식 포함"]
+              ]} />
+              <SelectInput label="세금/수수료" name="taxPolicy" defaultValue="taxes_included" options={[
+                ["taxes_included", "총액 기준"],
+                ["any", "무관"]
+              ]} />
+              <SelectInput label="결제 방식" name="paymentTiming" options={[
+                ["any", "무관"],
+                ["pay_now", "즉시결제"],
+                ["pay_at_property", "현장결제"]
+              ]} />
+              <div className="flex min-h-10 items-end">
+                <Check name="requirePubliclyBookable" label="공개 예약 가능 요금만" defaultChecked />
+              </div>
+              <div className="flex min-h-10 items-end">
+                <Check name="strictMatch" label="조건 불명 결과 제외" />
+              </div>
+            </div>
+          </div>
+
+          {selectedHotel ? (
+            <div className="mt-4 flex flex-wrap gap-2 text-xs text-ink/60">
+              <span>{selectedHotel.region}</span>
+              <span>·</span>
+              <a className="inline-flex items-center gap-1 underline" href={selectedHotel.officialUrl} target="_blank">
+                공홈 열기 <ExternalLink size={12} />
+              </a>
+            </div>
+          ) : null}
+        </form>
+
+        <section className="panel p-4 sm:p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <Star size={20} className="text-coral" />
+            <h2 className="text-lg font-semibold">즐겨찾기 추가</h2>
+          </div>
+          <form action={addHotel} className="grid gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="brand">브랜드</label>
+                <select className="field" id="brand" name="brand">
+                  {BRANDS.map((brand) => (
+                    <option key={brand} value={brand}>{brandLabels[brand]}</option>
+                  ))}
+                </select>
+              </div>
+              <TextInput label="지역" name="region" placeholder="Tokyo, Japan" />
+            </div>
+            <TextInput label="호텔명" name="name" placeholder="Park Hyatt Tokyo" />
+            <TextInput label="공홈 URL" name="officialUrl" type="url" placeholder="https://..." />
+            <div className="grid gap-3 sm:grid-cols-3">
+              <TextInput label="Google" name="googleUrl" type="url" placeholder="https://..." />
+              <TextInput label="Booking" name="bookingUrl" type="url" placeholder="https://..." />
+              <TextInput label="Agoda" name="agodaUrl" type="url" placeholder="https://..." />
+            </div>
+            <button className="mt-1 inline-flex h-10 items-center justify-center gap-2 bg-moss px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ borderRadius: 6 }} disabled={isPending}>
+              <Plus size={16} /> 저장
+            </button>
+          </form>
+        </section>
+      </section>
+
+      <section className="grid gap-5 lg:grid-cols-[1fr_0.8fr]">
+        <section className="panel overflow-hidden">
+          <div className="flex items-center justify-between border-b border-ink/10 px-4 py-3 sm:px-5">
+            <div className="flex items-center gap-2">
+              <CircleDollarSign size={20} className="text-coral" />
+              <h2 className="text-lg font-semibold">최근 결과</h2>
+            </div>
+          </div>
+          <div className="divide-y divide-ink/10">
+            {data.runs.length === 0 ? (
+              <Empty text="아직 조회 결과가 없습니다." />
+            ) : (
+              data.runs.map((run) => <RunResult key={run.id} run={run} />)
+            )}
+          </div>
+        </section>
+
+        <aside className="grid gap-5">
+          <section className="panel p-4 sm:p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <KeyRound size={20} className="text-coral" />
+              <h2 className="text-lg font-semibold">체인 로그인</h2>
+            </div>
+            <form action={saveCredential} className="grid gap-3">
+              <div>
+                <label className="label" htmlFor="credentialBrand">브랜드</label>
+                <select className="field" id="credentialBrand" name="brand">
+                  {BRANDS.map((brand) => (
+                    <option key={brand} value={brand}>{brandLabels[brand]}</option>
+                  ))}
+                </select>
+              </div>
+              <TextInput label="아이디" name="username" autoComplete="username" />
+              <TextInput label="비밀번호" name="password" type="password" autoComplete="current-password" />
+              <button className="inline-flex h-10 items-center justify-center gap-2 bg-ink px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ borderRadius: 6 }} disabled={isPending}>
+                <ShieldCheck size={16} /> 암호화 저장
+              </button>
+            </form>
+          </section>
+
+          <section className="panel overflow-hidden">
+            <div className="flex items-center justify-between border-b border-ink/10 px-4 py-3 sm:px-5">
+              <div className="flex items-center gap-2">
+                <Sparkles size={20} className="text-coral" />
+                <h2 className="text-lg font-semibold">이벤트</h2>
+              </div>
+              <button className="icon-button" title="이벤트 새로고침" onClick={refreshPromotions} disabled={isPending}>
+                <RefreshCw size={16} />
+              </button>
+            </div>
+            <div className="divide-y divide-ink/10">
+              {data.promotions.length === 0 ? (
+                <Empty text="저장된 이벤트가 없습니다." />
+              ) : (
+                data.promotions.map((promotion) => (
+                  <a key={promotion.id} className="block px-4 py-3 transition hover:bg-paper sm:px-5" href={promotion.sourceUrl} target="_blank">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-semibold text-moss">{brandLabels[promotion.brand]}</span>
+                      <span className="text-xs text-ink/50">{promotion.status}</span>
+                    </div>
+                    <h3 className="mt-1 text-sm font-semibold">{promotion.title}</h3>
+                    <p className="mt-1 text-xs leading-5 text-ink/64">{promotion.summary}</p>
+                  </a>
+                ))
+              )}
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="px-5 py-3">
+      <div className="text-xl font-semibold">{value}</div>
+      <div className="text-xs text-ink/58">{label}</div>
+    </div>
+  );
+}
+
+function TextInput(props: React.InputHTMLAttributes<HTMLInputElement> & { label: string; name: string }) {
+  const { label, name, ...rest } = props;
+  return (
+    <div>
+      <label className="label" htmlFor={name}>{label}</label>
+      <input className="field" id={name} name={name} {...rest} />
+    </div>
+  );
+}
+
+function SelectInput({
+  label,
+  name,
+  options,
+  defaultValue
+}: {
+  label: string;
+  name: string;
+  options: Array<[string, string]>;
+  defaultValue?: string;
+}) {
+  return (
+    <div>
+      <label className="label" htmlFor={name}>{label}</label>
+      <select className="field" id={name} name={name} defaultValue={defaultValue}>
+        {options.map(([value, text]) => (
+          <option key={value} value={value}>{text}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function Check({ name, label, defaultChecked }: { name: string; label: string; defaultChecked?: boolean }) {
+  return (
+    <label className="inline-flex items-center gap-2 text-sm">
+      <input name={name} type="checkbox" defaultChecked={defaultChecked} />
+      {label}
+    </label>
+  );
+}
+
+function RunResult({ run }: { run: DashboardData["runs"][number] }) {
+  const cheapest = run.results
+    .flatMap((result) => result.cashRates.map((rate) => ({ ...rate, source: result.source })))
+    .filter((rate) => rate.conditionMatch === "MATCH" || (!run.brgConditions.strictMatch && rate.conditionMatch === "UNKNOWN"))
+    .sort((a, b) => a.amount - b.amount)[0];
+
+  return (
+    <article className="px-4 py-4 sm:px-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="text-xs font-semibold text-moss">{brandLabels[run.brand]} · {run.status}</div>
+          <h3 className="mt-1 text-base font-semibold">{run.hotelName}</h3>
+          <p className="mt-1 text-xs text-ink/60">
+            {formatDate(run.checkIn)} - {formatDate(run.checkOut)}
+          </p>
+        </div>
+        {cheapest ? (
+          <div className="text-left sm:text-right">
+            <div className="text-xs text-ink/55">최저 후보</div>
+            <div className="text-lg font-semibold">{cheapest.amount.toLocaleString()} {cheapest.currency}</div>
+            <div className="text-xs text-ink/55">{sourceLabels[cheapest.source]}</div>
+          </div>
+        ) : null}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 text-xs text-ink/58">
+        <span className="border border-ink/10 bg-white px-2 py-1" style={{ borderRadius: 999 }}>
+          취소: {conditionLabel("cancellation", run.brgConditions.cancellation)}
+        </span>
+        <span className="border border-ink/10 bg-white px-2 py-1" style={{ borderRadius: 999 }}>
+          식사: {conditionLabel("mealPlan", run.brgConditions.mealPlan)}
+        </span>
+        <span className="border border-ink/10 bg-white px-2 py-1" style={{ borderRadius: 999 }}>
+          세금: {conditionLabel("taxPolicy", run.brgConditions.taxPolicy)}
+        </span>
+        {run.brgConditions.strictMatch ? (
+          <span className="border border-coral/20 bg-coral/10 px-2 py-1 text-coral" style={{ borderRadius: 999 }}>
+            조건 불명 제외
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-4 grid gap-2 md:grid-cols-2">
+        {run.results.map((result) => (
+          <div key={result.source} className="border border-ink/10 bg-paper p-3" style={{ borderRadius: 6 }}>
+            <div className="flex items-center justify-between gap-3">
+              <a className="inline-flex items-center gap-1 text-sm font-semibold underline" href={result.sourceUrl} target="_blank">
+                {sourceLabels[result.source]} <ExternalLink size={13} />
+              </a>
+              <span className="text-xs text-ink/55">{Math.round(result.confidence * 100)}%</span>
+            </div>
+            {result.cashRates[0] ? (
+              <>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <p className="text-sm">
+                    {result.cashRates[0].amount.toLocaleString()} {result.cashRates[0].currency}
+                    <span className="text-xs text-ink/55"> · {result.feesIncluded ? "세금 포함" : "세금 확인 필요"}</span>
+                  </p>
+                  <ConditionBadge match={result.cashRates[0].conditionMatch || "UNKNOWN"} />
+                </div>
+                {result.cashRates[0].conditionNotes?.length ? (
+                  <p className="mt-1 text-xs leading-5 text-ink/58">
+                    {result.cashRates[0].conditionNotes.join(" · ")}
+                  </p>
+                ) : null}
+              </>
+            ) : null}
+            {result.pointsRates[0] ? (
+              <p className="mt-1 text-xs text-ink/65">{result.pointsRates[0].points.toLocaleString()} pts</p>
+            ) : null}
+            {result.failureReason ? <p className="mt-2 text-xs leading-5 text-coral">{result.failureReason}</p> : null}
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function ConditionBadge({ match }: { match: "MATCH" | "MISMATCH" | "UNKNOWN" }) {
+  const styles = {
+    MATCH: "border-moss/20 bg-moss/10 text-moss",
+    MISMATCH: "border-coral/25 bg-coral/10 text-coral",
+    UNKNOWN: "border-ink/15 bg-white text-ink/60"
+  };
+  const text = {
+    MATCH: "조건 일치",
+    MISMATCH: "조건 불일치",
+    UNKNOWN: "확인 필요"
+  };
+
+  return (
+    <span className={`border px-2 py-1 text-xs font-semibold ${styles[match]}`} style={{ borderRadius: 999 }}>
+      {text[match]}
+    </span>
+  );
+}
+
+function conditionLabel(kind: "cancellation" | "mealPlan" | "taxPolicy", value: string) {
+  const labels: Record<string, string> = {
+    any: "무관",
+    free: "무료 취소",
+    non_refundable: "환불불가",
+    room_only: "객실만",
+    breakfast: "조식 포함",
+    taxes_included: "총액"
+  };
+  return labels[value] || value;
+}
+
+function Empty({ text }: { text: string }) {
+  return <div className="px-4 py-8 text-center text-sm text-ink/55">{text}</div>;
+}
+
+function toDateInput(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(new Date(value));
+}
