@@ -57,7 +57,7 @@ const defaultSearchOptions: SearchOptions = {
   currency: "KRW",
   includeCash: true,
   includePoints: true,
-  sources: [...SOURCES],
+  sources: ["official", "hotels"],
   brgConditions: {
     roomType: "",
     bedType: "any",
@@ -129,6 +129,33 @@ export function Dashboard({ initialData }: Props) {
       });
       const body = await response.json();
       setNotice(response.ok ? "조회가 완료되었습니다." : body.error || "조회에 실패했습니다.");
+      await refreshDashboard();
+    });
+  }
+
+  async function quickCheck(sources: Source[]) {
+    setNotice("");
+    const checkIn = (document.getElementById("checkIn") as HTMLInputElement | null)?.value;
+    const checkOut = (document.getElementById("checkOut") as HTMLInputElement | null)?.value;
+    if (!selectedHotelId || !checkIn || !checkOut) {
+      setNotice("호텔과 날짜를 먼저 선택해주세요.");
+      return;
+    }
+
+    startTransition(async () => {
+      const response = await fetch("/api/search-runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hotelId: selectedHotelId,
+          checkIn,
+          checkOut,
+          ...searchOptions,
+          sources
+        })
+      });
+      const body = await response.json();
+      setNotice(response.ok ? "빠른 조회가 완료되었습니다." : body.error || "조회에 실패했습니다.");
       await refreshDashboard();
     });
   }
@@ -277,6 +304,24 @@ export function Dashboard({ initialData }: Props) {
     });
   }
 
+  async function updateManualRate(runId: string, source: Source, amount: number, currency: string) {
+    if (!amount || amount <= 0) {
+      setNotice("0보다 큰 금액을 입력해주세요.");
+      return;
+    }
+    setNotice("");
+    startTransition(async () => {
+      const response = await fetch(`/api/search-runs/${runId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source, amount, currency })
+      });
+      const body = await response.json();
+      setNotice(response.ok ? "실가격을 반영했습니다." : body.error || "실가격 저장에 실패했습니다.");
+      await refreshDashboard();
+    });
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-4 border-b border-ink/10 pb-5 md:flex-row md:items-end md:justify-between">
@@ -328,13 +373,26 @@ export function Dashboard({ initialData }: Props) {
                 ))}
               </select>
             </div>
-            <TextInput label="체크인" name="checkIn" type="date" defaultValue={toDateInput(tomorrow)} />
-            <TextInput label="체크아웃" name="checkOut" type="date" defaultValue={toDateInput(checkout)} />
+            <TextInput label="체크인" name="checkIn" id="checkIn" type="date" defaultValue={toDateInput(tomorrow)} />
+            <TextInput label="체크아웃" name="checkOut" id="checkOut" type="date" defaultValue={toDateInput(checkout)} />
             <TextInput label="성인" name="adults" type="number" value={searchOptions.adults} min="1" max="8" onChange={(event) => updateSearchOption("adults", Number(event.target.value || 1))} />
             <TextInput label="객실" name="rooms" type="number" value={searchOptions.rooms} min="1" max="4" onChange={(event) => updateSearchOption("rooms", Number(event.target.value || 1))} />
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink/10 pt-4">
+          <div className="mt-4 grid gap-2 border-t border-ink/10 pt-4 sm:grid-cols-3">
+            <button type="button" className="inline-flex h-11 items-center justify-center gap-2 bg-moss px-4 text-sm font-semibold text-white disabled:opacity-50" style={{ borderRadius: 6 }} onClick={() => quickCheck(["official", "hotels"])} disabled={isPending}>
+              {isPending ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+              공홈 vs Hotels
+            </button>
+            <button type="button" className="inline-flex h-11 items-center justify-center gap-2 border border-ink/15 bg-white px-4 text-sm font-semibold disabled:opacity-50" style={{ borderRadius: 6 }} onClick={() => quickCheck(["official", "expedia"])} disabled={isPending}>
+              <Search size={16} /> 공홈 vs Expedia
+            </button>
+            <button type="button" className="inline-flex h-11 items-center justify-center gap-2 border border-ink/15 bg-white px-4 text-sm font-semibold disabled:opacity-50" style={{ borderRadius: 6 }} onClick={() => quickCheck(["official", "booking"])} disabled={isPending}>
+              <Search size={16} /> 공홈 vs Booking
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <button type="button" className="inline-flex h-9 items-center gap-2 border border-ink/15 bg-white px-3 text-sm font-semibold" style={{ borderRadius: 6 }} onClick={() => togglePanel("options")}>
               <Filter size={16} /> 검색 옵션 <ChevronDown size={15} />
             </button>
@@ -420,7 +478,7 @@ export function Dashboard({ initialData }: Props) {
             {data.runs.length === 0 ? (
               <Empty text="아직 조회 결과가 없습니다." />
             ) : (
-              data.runs.map((run) => <RunResult key={run.id} run={run} isPending={isPending} onDelete={deleteRun} onRefresh={rerunSearch} />)
+              data.runs.map((run) => <RunResult key={run.id} run={run} isPending={isPending} onDelete={deleteRun} onRefresh={rerunSearch} onManualRate={updateManualRate} />)
             )}
           </div>
         </section>
@@ -807,12 +865,14 @@ function RunResult({
   run,
   isPending,
   onDelete,
-  onRefresh
+  onRefresh,
+  onManualRate
 }: {
   run: DashboardData["runs"][number];
   isPending: boolean;
   onDelete: (runId: string) => void;
   onRefresh: (run: DashboardData["runs"][number]) => void;
+  onManualRate: (runId: string, source: Source, amount: number, currency: string) => void;
 }) {
   const cheapest = run.results
     .flatMap((result) => result.cashRates.map((rate) => ({ ...rate, source: result.source })))
@@ -892,11 +952,59 @@ function RunResult({
               <p className="mt-1 text-xs text-ink/65">{result.pointsRates[0].points.toLocaleString()} pts</p>
             ) : null}
             {result.brgPrediction ? <Prediction prediction={result.brgPrediction} /> : null}
+            <ManualRateForm
+              runId={run.id}
+              source={result.source}
+              currency={result.cashRates[0]?.currency || run.currency}
+              defaultAmount={result.cashRates[0]?.amount}
+              isPending={isPending}
+              onManualRate={onManualRate}
+            />
             {result.failureReason ? <p className="mt-2 text-xs leading-5 text-coral">{result.failureReason}</p> : null}
           </div>
         ))}
       </div>
     </article>
+  );
+}
+
+function ManualRateForm({
+  runId,
+  source,
+  currency,
+  defaultAmount,
+  isPending,
+  onManualRate
+}: {
+  runId: string;
+  source: Source;
+  currency: string;
+  defaultAmount?: number;
+  isPending: boolean;
+  onManualRate: (runId: string, source: Source, amount: number, currency: string) => void;
+}) {
+  const [amount, setAmount] = useState(defaultAmount ? String(defaultAmount) : "");
+
+  return (
+    <div className="mt-3 flex gap-2 border-t border-ink/10 pt-3">
+      <input
+        className="field h-9"
+        inputMode="numeric"
+        aria-label={`${sourceLabels[source]} 실가격`}
+        value={amount}
+        onChange={(event) => setAmount(event.target.value.replace(/[^\d]/g, ""))}
+        placeholder="실가격"
+      />
+      <button
+        type="button"
+        className="inline-flex h-9 shrink-0 items-center justify-center gap-1 bg-ink px-3 text-xs font-semibold text-white disabled:opacity-50"
+        style={{ borderRadius: 6 }}
+        disabled={isPending}
+        onClick={() => onManualRate(runId, source, Number(amount), currency)}
+      >
+        반영
+      </button>
+    </div>
   );
 }
 
