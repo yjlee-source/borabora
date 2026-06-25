@@ -107,6 +107,18 @@ export function Dashboard({ initialData }: Props) {
     [data.presets, selectedPresetId]
   );
 
+  const quickRechecks = useMemo(() => {
+    const seen = new Set<string>();
+    return data.runs
+      .filter((run) => {
+        const key = `${run.hotelId}:${run.checkIn}:${run.checkOut}:${run.sources.join(",")}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 3);
+  }, [data.runs]);
+
   async function refreshDashboard() {
     const response = await fetch("/api/dashboard", { cache: "no-store" });
     setData(await response.json());
@@ -349,6 +361,14 @@ export function Dashboard({ initialData }: Props) {
         </div>
       ) : null}
 
+      {quickRechecks.length ? (
+        <section className="grid gap-3 md:grid-cols-3">
+          {quickRechecks.map((run) => (
+            <QuickRecheckCard key={run.id} run={run} isPending={isPending} onRefresh={rerunSearch} />
+          ))}
+        </section>
+      ) : null}
+
       <section className="grid gap-5 lg:grid-cols-[1fr_0.65fr]">
         <form action={createSearchRun} className="panel p-4 sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -546,6 +566,54 @@ function PanelButton({
       {icon}
       {label}
     </button>
+  );
+}
+
+function QuickRecheckCard({
+  run,
+  isPending,
+  onRefresh
+}: {
+  run: DashboardData["runs"][number];
+  isPending: boolean;
+  onRefresh: (run: DashboardData["runs"][number]) => void;
+}) {
+  const best = run.results
+    .flatMap((result) => result.cashRates.map((rate) => ({ ...rate, source: result.source, sourceUrl: result.sourceUrl, prediction: result.brgPrediction })))
+    .filter((rate) => rate.source !== "official")
+    .sort((a, b) => a.amount - b.amount)[0];
+
+  return (
+    <article className="panel p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-moss">{brandLabels[run.brand]}</div>
+          <h2 className="mt-1 truncate text-base font-semibold">{run.hotelName}</h2>
+          <p className="mt-1 text-xs text-ink/58">
+            {formatDate(run.checkIn)} - {formatDate(run.checkOut)}
+          </p>
+        </div>
+        <button className="icon-button shrink-0" title="현재 시점으로 다시 조회" type="button" onClick={() => onRefresh(run)} disabled={isPending}>
+          {isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+        </button>
+      </div>
+      {best ? (
+        <div className="mt-3 border-t border-ink/10 pt-3">
+          <div className="text-xs text-ink/55">최근 후보</div>
+          <div className="mt-1 text-lg font-semibold">
+            {best.amount.toLocaleString()} {best.currency}
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-2 text-xs text-ink/58">
+            <a className="inline-flex items-center gap-1 underline" href={best.sourceUrl} target="_blank">
+              {sourceLabels[best.source]} <ExternalLink size={12} />
+            </a>
+            {best.prediction ? <span>{best.prediction.score}% {best.prediction.band}</span> : null}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-3 border-t border-ink/10 pt-3 text-xs text-ink/55">외부 후보가 아직 없습니다.</p>
+      )}
+    </article>
   );
 }
 
